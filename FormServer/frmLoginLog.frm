@@ -6,10 +6,10 @@ Begin VB.Form frmLoginLog
    ClientHeight    =   4890
    ClientLeft      =   120
    ClientTop       =   450
-   ClientWidth     =   11265
+   ClientWidth     =   15885
    LinkTopic       =   "Form1"
    ScaleHeight     =   4890
-   ScaleWidth      =   11265
+   ScaleWidth      =   15885
    StartUpPosition =   1  '所有者中心
    Begin MSComDlg.CommonDialog CommonDialog1 
       Left            =   9000
@@ -47,12 +47,13 @@ Begin VB.Form frmLoginLog
       Rows            =   30
    End
    Begin VB.Label Label2 
+      Caption         =   "用时123.321秒"
       ForeColor       =   &H00FF00FF&
       Height          =   180
       Left            =   10080
       TabIndex        =   4
       Top             =   180
-      Width           =   3180
+      Width           =   2460
    End
    Begin VB.Label Label1 
       AutoSize        =   -1  'True
@@ -62,6 +63,13 @@ Begin VB.Form frmLoginLog
       TabIndex        =   1
       Top             =   150
       Width           =   1260
+   End
+   Begin VB.Menu mnuExport 
+      Caption         =   "导出"
+      Visible         =   0   'False
+      Begin VB.Menu mnuExportExcel 
+         Caption         =   "导出至Excel"
+      End
    End
 End
 Attribute VB_Name = "frmLoginLog"
@@ -220,4 +228,20 @@ End Sub
 
 Private Sub Grid1_KeyPress(KeyAscii As Integer)
     If KeyAscii <> 3 Then KeyAscii = 0  '除了Ctrl+C，其余屏蔽
+End Sub
+
+Private Sub Grid1_MouseUp(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    If Button = vbRightButton Then
+        PopupMenu mnuExport
+    End If
+End Sub
+
+Private Sub mnuExportExcel_Click()
+    Dim strFile As String
+    
+    If gfFileRepair(gVar.FolderNameTemp, True) Then
+       strFile = gVar.FolderNameTemp & "LoginLog" & Format(Now, gVar.Formatymdhms) & ".xls"
+        Me.Grid1.ExportToExcel strFile
+        Call gfFileOpen(strFile)
+    End If
 End Sub

@@ -63,6 +63,13 @@ Begin VB.Form frmErrorLog
       Top             =   180
       Width           =   3180
    End
+   Begin VB.Menu mnuExport 
+      Caption         =   "导出"
+      Visible         =   0   'False
+      Begin VB.Menu mnuExportExcel 
+         Caption         =   "导出至Excel"
+      End
+   End
 End
 Attribute VB_Name = "frmErrorLog"
 Attribute VB_GlobalNameSpace = False
@@ -215,5 +222,21 @@ End Sub
 
 Private Sub Grid1_KeyPress(KeyAscii As Integer)
     If KeyAscii <> 3 Then KeyAscii = 0  '除了Ctrl+C，其余屏蔽
+End Sub
+
+Private Sub Grid1_MouseUp(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    If Button = vbRightButton Then
+        PopupMenu mnuExport
+    End If
+End Sub
+
+Private Sub mnuExportExcel_Click()
+    Dim strFile As String
+    
+    If gfFileRepair(gVar.FolderNameTemp, True) Then
+       strFile = gVar.FolderNameTemp & "ErrLog" & Format(Now, gVar.Formatymdhms) & ".xls"
+        Me.Grid1.ExportToExcel strFile
+        Call gfFileOpen(strFile)
+    End If
 End Sub
 
