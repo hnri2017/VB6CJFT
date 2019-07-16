@@ -479,8 +479,8 @@ Private Sub msAddAction(ByRef cbsBars As XtremeCommandBars.CommandBars)
         .Add gID.IconPopupMenuShowWindow, "显示窗口", "", "", ""
         
         .Add gID.Tool, "工具", "", "", "工具"
-        .Add gID.toolErrorLog, "错误日志", "", "", "frmErrorLog"
-        .Add gID.toolLoginLog, "登陆日志", "", "", "frmLoginLog"
+        .Add gID.toolErrorLog, "系统异常日志", "", "", "frmErrorLog"
+        .Add gID.toolLoginLog, "用户登陆日志", "", "", "frmLoginLog"
         .Add gID.toolOptions, "选项", "", "", "frmOption"
         
         

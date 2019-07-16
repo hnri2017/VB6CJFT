@@ -2,7 +2,7 @@ VERSION 5.00
 Object = "{E08BA07E-6463-4EAB-8437-99F08000BAD9}#1.9#0"; "FlexCell.ocx"
 Object = "{F9043C88-F6F2-101A-A3C9-08002B2F49FB}#1.2#0"; "ComDlg32.OCX"
 Begin VB.Form frmLoginLog 
-   Caption         =   "登陆日志查看"
+   Caption         =   "用户登陆日志查看"
    ClientHeight    =   4890
    ClientLeft      =   120
    ClientTop       =   450
@@ -165,12 +165,13 @@ Private Sub mOpenLog()
     Me.MousePointer = 0
     
     If Err.Number Then
-        Call gsAlarmAndLog("日志文件读取异常")
+        Call gsAlarmAndLog("登陆日志读取异常")
     End If
 End Sub
 
 Private Sub Command1_Click()
     Dim strFile As String, strPrefix As String, strExtension As String
+    Dim strOpen As String, blnOpen As Boolean
     
     Me.Label2.Caption = "用时…"
     strPrefix = Mid(gVar.FileNameLoginLog, InStrRev(gVar.FileNameLoginLog, "\") + 1, InStrRev(gVar.FileNameLoginLog, ".") - InStrRev(gVar.FileNameLoginLog, "\") - 1)
@@ -185,11 +186,18 @@ Private Sub Command1_Click()
     End With
     
     If Len(strFile) > 0 Then
-        If LCase(Right(strFile, 4)) = LCase(".log") Then
-            If gfFileExist(strFile) Then
-                mstrFile = strFile
-                Call mOpenLog
+        strOpen = Mid(strFile, InStrRev(strFile, "\") + 1)
+        If LCase(Right(strOpen, 4)) = LCase(strExtension) Then
+            If LCase(Left(strOpen, Len(strPrefix))) = LCase(strPrefix) Then
+                If gfFileExist(strFile) Then
+                    mstrFile = strFile
+                    Call mOpenLog
+                    blnOpen = True
+                End If
             End If
+        End If
+        If Not blnOpen Then
+            MsgBox "所选日志文件不符合打开要求！", vbExclamation, "警告"
         End If
     End If
 End Sub
