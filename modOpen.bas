@@ -92,15 +92,20 @@ Private Function GetAddressofFunction(ByVal AddOf As Long) As Long
     GetAddressofFunction = AddOf
 End Function
 
-Public Function DirFile(ByVal strPath As String) As Boolean
-    '判断文件是否存在
+Public Function DirFile(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
+    '判断 [文件] 是否存在
     Dim strDir As String, strMid As String
     
     On Error Resume Next
-    strDir = Dir(strPath)
+    strDir = Dir(strPath, vbHidden) '若存在则返回不带路径的文件名
     If Len(strDir) > 0 Then
-        strMid = Mid(strPath, InStrRev(strPath, "\") + 1)
-        If LCase(strMid) = LCase(strDir) Then
+        strMid = Mid(strPath, InStrRev(strPath, "\") + 1)   '获得不包含文件夹路径的文件名
+        If LCase(strMid) = LCase(strDir) Then   '相等则表示文件存在
+            If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
+                If GetAttr(strPath) <> vbNormal Then
+                    SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
+                End If
+            End If
             DirFile = True
         End If
     End If
@@ -109,19 +114,19 @@ Public Function DirFile(ByVal strPath As String) As Boolean
     End If
 End Function
 
-Public Function DirFolder(ByVal strPath As String) As Boolean
-    '判断文件夹是否存在
+Public Function DirFolder(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
+    '判断 [文件夹] 是否存在
     Dim strFod As String, strGet As String
     
     On Error Resume Next
-    If Len(Trim(strPath)) > 0 Then  '以防传入的空字符串路径
+    If Len(Trim(strPath)) > 0 Then  '以防传入空字符串路径
         If Right(strPath, 1) = "\" Then
             If InStr(strPath, "\") <> InStrRev(strPath, "\") Then   '以防传入的是根目录
-                strPath = Left(strPath, Len(strPath) - 1) '踢除末尾多余的"\"
+                strPath = Left(strPath, Len(strPath) - 1) '非根目录则踢除末尾多余的"\"
             End If
         End If
     End If
-    strFod = Dir(strPath, vbDirectory)
+    strFod = Dir(strPath, vbDirectory + vbHidden)
     If Len(strFod) > 0 Then '说明有返回值
         If strFod <> "." And strFod <> ".." Then    '若是空路径则返回"."
             If InStr(strPath, "\") = InStrRev(strPath, "\") Then    '以防传入的是根目录如"D:\"
@@ -130,6 +135,11 @@ Public Function DirFolder(ByVal strPath As String) As Boolean
                 strGet = Left(strPath, Len(strPath) - Len(strFod)) & strFod '正常情况下strFod值+上层目录=strPath
             End If
             If GetAttr(strGet) And vbDirectory = vbDirectory Then   '如果是文件夹或者存在的根目录
+                If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
+                    If GetAttr(strPath) <> vbNormal Then
+                        SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
+                    End If
+                End If
                 DirFolder = True
             End If
         End If
@@ -175,7 +185,7 @@ Public Function BackupFile(ByVal strFolderSrc As String, ByVal strFolderDes As S
     Open strFBK For Binary As #intDes
     strDir = Dir(strFind)
     Do While Not Len(strDir) = 0
-        DoEvents    '单个文件太大时容易内存溢出报错,大约三四百M的时候?
+        DoEvents    '单个文件太大时容易内存溢出报错,大约大于380MB的时候?
         intSrc = FreeFile
         strGet = strFS & strDir
         lngSize = FileLen(strGet)
@@ -196,6 +206,8 @@ LineErr:
     Close   '关闭所有
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+        If DirFile(strFBK) Then Kill strFBK '删除备份文件
+        If DirFile(strFR) Then Kill strFR
     End If
 End Function
 

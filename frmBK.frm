@@ -10,6 +10,14 @@ Begin VB.Form frmBK
    ScaleHeight     =   4995
    ScaleWidth      =   10050
    StartUpPosition =   1  '所有者中心
+   Begin VB.CommandButton Command6 
+      Caption         =   "Command6"
+      Height          =   495
+      Left            =   2400
+      TabIndex        =   7
+      Top             =   3720
+      Width           =   1215
+   End
    Begin VB.CommandButton Command5 
       Caption         =   "浏览还原文件"
       Height          =   375
@@ -122,6 +130,13 @@ Private Sub Command5_Click()
         .ShowOpen
         Me.Text2.Text = .FileName
     End With
+End Sub
+
+Private Sub Command6_Click()
+    Dim strDF As String
+    strDF = "a.txt"
+'    MsgBox DirFile(strDF, True)
+    MsgBox DirFolder(App.Path & "\a", True)
 End Sub
 
 Private Sub Form_Load()
