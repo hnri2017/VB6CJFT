@@ -97,9 +97,13 @@ Private Sub Command1_Click()
     '备份
     
     Call EnabledControl(Me, False)
+'    If Not BackupFile(mstrBackup, mstrRestore, False) Then
+'        MsgBox "备份失败", vbCritical, "警告"
+'    End If
     If Not BackupFile(mstrBackup, mstrRestore) Then
         MsgBox "备份失败", vbCritical, "警告"
     End If
+    
     Call EnabledControl(Me, True)
     
 End Sub
@@ -107,7 +111,10 @@ End Sub
 Private Sub Command2_Click()
     '还原
     Call EnabledControl(Me, False)
-    If Not RestoreFile(Me.Text2.Text, mstrBackup) Then
+'    If Not RestoreFile(Me.Text2.Text, mstrBackup, False) Then
+'        MsgBox "还原失败", vbCritical, "警告"
+'    End If
+    If Not RestoreFile(Me.Text2.Text, Me.Text1.Text) Then
         MsgBox "还原失败", vbCritical, "警告"
     End If
     Call EnabledControl(Me, True)
@@ -140,6 +147,8 @@ Private Sub Command6_Click()
 End Sub
 
 Private Sub Form_Load()
-    mstrDtBK = App.Path & "\store"
-    mstrDtRS = App.Path & "\data"
+    mstrBackup = App.Path & "\store"
+    mstrRestore = App.Path & "\data"
+    Me.Text1.Text = mstrBackup
+    Me.Text2.Text = mstrRestore
 End Sub
