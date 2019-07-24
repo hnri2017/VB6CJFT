@@ -514,9 +514,10 @@ LineERR:
     End If
 End Function
 
-Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As String) As Boolean
+Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As String, _
+            Optional ByVal MSize As Long = 50) As Boolean
     '压缩文件
-    Dim strWinRAR As String, strSrc As String, strDes As String, strCommand As String
+    Dim strWinRAR As String, strSrc As String, strDes As String, strSize As String, strCommand As String
     
     strWinRAR = IIf(Right(App.Path, 1) = "\", App.Path, App.Path & "\") & "WinRAR.exe"
     If Not FileExist(strWinRAR) Then  '压缩程序是否存在
@@ -531,17 +532,17 @@ Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As
         MsgBox "保存压缩文件的目录不存在", vbExclamation, "警告"
         Exit Function
     End If
-    '源文件是否为空
-    If FolderNotNull(strSrcFolder) = 0 Then
+    If FolderNotNull(strSrcFolder) = 0 Then '源目录是否为空
         MsgBox "被压缩的文件目录无可压缩文件", vbExclamation, "提醒"
         Exit Function
     End If
     
     strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")    '样式: D:\temp\，'\'有重要意义
     strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\") & "FC_" & Format(Now, "yyyy_MM_DD_HH_mm_ss") & ".rar"
-    
+    If MSize <= 0 Then MSize = 50
+    strSize = "-v" & MSize & "M"
     '生成压缩shell命令。'-k锁定文件，-v50M 以50M分卷，-r 连同子文件夹，-ep1 路径中不包含顶层文件夹
-    strCommand = strWinRAR & " a -v50M -s -k -r -ep1 " & strDes & " " & strSrc
+    strCommand = strWinRAR & " a " & strSize & " -s -k -r -ep1 " & strDes & " " & strSrc
     If ShellWait(strCommand) Then
         FileCompress = True '但是如果压缩过程被中断取消也是返回True的
     End If
