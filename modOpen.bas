@@ -1,6 +1,33 @@
 Attribute VB_Name = "modOpen"
 Option Explicit
 
+
+'获取一个已中断进程的退出代码.非零表示成功，零表示失败
+Private Declare Function GetExitCodeProcess Lib "kernel32" (ByVal hProcess As Long, lpExitCode As Long) As Long
+'打开一个已存在的进程对象，并返回进程的句柄
+Private Declare Function OpenProcess Lib "kernel32" (ByVal dwDesiredAccess As Long, ByVal bInheritHandle As Long, ByVal dwProcessId As Long) As Long
+'关闭一个内核对象。其中包括文件、文件映射、进程、线程、安全和同步对象等
+Private Declare Function CloseHandle Lib "kernel32" (ByVal hObject As Long) As Long
+
+Private Const CREATE_NEW_CONSOLE = &H10
+Private Const Process_query_infomation = &H400  '获取进程的令牌、退出码和优先级等信息
+Private Const Still_Active = &H103
+
+'得到当前平台和操作系统有关的版本信息.非零表示成功，零表示失败
+Private Declare Function GetVersionEx Lib "kernel32" Alias "GetVersionExA" (lpVersionInformation As OSVERSIONINFO) As Long
+Private Type OSVERSIONINFO
+    dwOSVersionInfoSize As Long '初始化为结构的大小
+    dwMajorVersion As Long      '系统主版本号
+    dwMinorVersion As Long      '系统次版本号
+    dwBuildNumber As Long       '系统构建号
+    dwPlatformId As Long        '系统支持的平台
+    szCSDVersion As String * 128    '
+End Type
+
+'得到当前window系统目的完整路径名
+Private Declare Function GetWindowsDirectory Lib "kernel32" Alias "GetWindowsDirectoryA" (ByVal lpBuffer As String, ByVal nSize As Long) As Long
+'---------------------------------------------------------------------------------------
+
 '浏览目录所使用的常量、API、Type、变量等。功能：定位到当前文件夹，而且选定它
 Private Const BIF_RETURNONLYFSDIRS = 1  '仅仅返回文件系统的目录
 Private Const BIF_DONTGOBELOWDOMAIN = 2 '在树形视窗中，不包含域名底下的网络目录结构
@@ -34,8 +61,7 @@ Private Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hw
 Private Declare Function SHBrowseForFolder Lib "shell32" (lpbi As BrowseInfo) As Long
 Private Declare Function SHGetPathFromIDList Lib "shell32" (ByVal pidList As Long, ByVal lpBuffer As String) As Long
 Private Declare Function lstrcat Lib "kernel32" Alias "lstrcatA" (ByVal lpString1 As String, ByVal lpString2 As String) As Long
-
-'
+'-----------------------------------------------------------------------------------
 
 '''网上抄的MD5加密解密
 '''链接地址：https://www.cnblogs.com/youyouran/p/5381050.html
@@ -136,9 +162,13 @@ Public Enum ENCALGORITHM
 End Enum
 
 Dim HexMatrix(15, 15) As Byte
+'---------------------------------------------------------------------------
+
 Private Const mconStrKey As String = "ftkey" '公共密钥
 Private Const mconStrBKbak As String = ".bak"    '备份文件的
 Private Const mconStrBKrst As String = ".rst"    '备份配置文件扩展名
+
+'---------------------------------------------------------------------------
 
 '================================================
 '加密
@@ -362,7 +392,7 @@ Public Function BrowseForFolder(ByRef Owner As Form, _
     Dim tBrowseInfo As BrowseInfo
     
     m_CurrentDirectory = StartDir & vbNullChar
-
+    
     szTitle = Title
     With tBrowseInfo
         .hWndOwner = Owner.hwnd
@@ -386,7 +416,7 @@ End Function
 
 Private Function BrowseCallbackProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal lp As Long, ByVal pData As Long) As Long
     Dim lpIDList As Long
-    Dim ret As Long
+    Dim Ret As Long
     Dim sBuffer As String
     
     On Error Resume Next
@@ -396,8 +426,8 @@ Private Function BrowseCallbackProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVa
             Call SendMessage(hwnd, BFFM_SETSelectION, 1, m_CurrentDirectory)
         Case BFFM_SELCHANGED
             sBuffer = Space(MAX_PATH)
-            ret = SHGetPathFromIDList(lp, sBuffer)
-            If ret = 1 Then
+            Ret = SHGetPathFromIDList(lp, sBuffer)
+            If Ret = 1 Then
                 Call SendMessage(hwnd, BFFM_SETSTATUSTEXT, 0, sBuffer)
             End If
         End Select
@@ -407,63 +437,7 @@ End Function
 Private Function GetAddressofFunction(ByVal AddOf As Long) As Long
     GetAddressofFunction = AddOf
 End Function
-
-Public Function DirFile(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
-    '判断 [文件] 是否存在
-    Dim strDir As String, strMid As String
-    
-    On Error Resume Next
-    strDir = Dir(strPath, vbHidden) '若存在则返回不带路径的文件名
-    If Len(strDir) > 0 Then
-        strMid = Mid(strPath, InStrRev(strPath, "\") + 1)   '获得不包含文件夹路径的文件名
-        If LCase(strMid) = LCase(strDir) Then   '相等则表示文件存在
-            If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
-                If GetAttr(strPath) <> vbNormal Then
-                    SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
-                End If
-            End If
-            DirFile = True
-        End If
-    End If
-    If Err.Number Then
-        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
-    End If
-End Function
-
-Public Function DirFolder(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
-    '判断 [文件夹] 是否存在
-    Dim strFod As String, strGet As String
-    
-    On Error Resume Next
-    If Len(Trim(strPath)) > 0 Then  '以防传入空字符串路径
-        If Right(strPath, 1) = "\" Then
-            If InStr(strPath, "\") <> InStrRev(strPath, "\") Then   '以防传入的是根目录
-                strPath = Left(strPath, Len(strPath) - 1) '非根目录则踢除末尾多余的"\"
-            End If
-        End If
-    End If
-    strFod = Dir(strPath, vbDirectory + vbHidden)
-    If Len(strFod) > 0 Then '说明有返回值
-        If strFod <> "." And strFod <> ".." Then    '若是空路径则返回"."
-            If InStr(strPath, "\") = InStrRev(strPath, "\") Then    '以防传入的是根目录如"D:\"
-                strGet = strPath
-            Else
-                strGet = Left(strPath, Len(strPath) - Len(strFod)) & strFod '正常情况下strFod值+上层目录=strPath
-            End If
-            If GetAttr(strGet) And vbDirectory = vbDirectory Then   '如果是文件夹或者存在的根目录
-                If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
-                    If GetAttr(strPath) <> vbNormal Then
-                        SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
-                    End If
-                End If
-                DirFolder = True
-            End If
-        End If
-    End If
-    If Err.Number Then
-        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
-    End If
-End Function
+'--------------------------------------------------------------------------
 
 Public Sub EnabledControl(ByRef frmEN As Form, Optional ByVal blnEN As Boolean = True)
     Dim ctlEn As VB.Control
@@ -474,7 +448,7 @@ Public Sub EnabledControl(ByRef frmEN As Form, Optional ByVal blnEN As Boolean =
     Screen.MousePointer = IIf(blnEN, 0, 13)
 End Sub
 
-Public Function BackupFile(ByVal strFolderSrc As String, ByVal strFolderDes As String, _
+Public Function FileBackup(ByVal strFolderSrc As String, ByVal strFolderDes As String, _
     Optional ByVal blnEncrypt As Boolean = True, _
     Optional ByVal strKey As String = mconStrKey) As Boolean
     '备份
@@ -483,7 +457,7 @@ Public Function BackupFile(ByVal strFolderSrc As String, ByVal strFolderDes As S
     Dim bytFile() As Byte, intSrc As Integer, intDes As Integer, lngSize As Long, bytEncrypt() As Byte
     Dim strFR As String, intFR As Integer, strSize As String
     
-    If Not (DirFolder(strFolderSrc) And DirFolder(strFolderDes)) Then
+    If Not (FolderExist(strFolderSrc) And FolderExist(strFolderDes)) Then
         MsgBox "备份的源路径或目的路径不存在", vbCritical, "警告"
         Exit Function
     End If
@@ -529,18 +503,104 @@ Public Function BackupFile(ByVal strFolderSrc As String, ByVal strFolderDes As S
     Close intSrc
     Close intDes
     Close intFR
-    BackupFile = True
+    FileBackup = True
     
 LineERR:
     Close   '关闭所有
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
-        If DirFile(strFBK) Then Kill strFBK '删除备份文件
-        If DirFile(strFR) Then Kill strFR
+        If FileExist(strFBK) Then Kill strFBK '删除备份文件
+        If FileExist(strFR) Then Kill strFR
     End If
 End Function
 
-Public Function RestoreFile(ByVal strFileSrc As String, ByVal strFolderDes As String, _
+Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As String) As Boolean
+    '压缩文件
+    Dim strWinRAR As String, strSrc As String, strDes As String, strCommand As String
+    
+    strWinRAR = IIf(Right(App.Path, 1) = "\", App.Path, App.Path & "\") & "WinRAR.exe"
+    If Not FileExist(strWinRAR) Then  '压缩程序是否存在
+        MsgBox "WinRAR压缩应用程序不存在", vbExclamation, "警告"
+        Exit Function
+    End If
+    If Not FolderExist(strSrcFolder) Then '源文件与目的文件是否存在
+        MsgBox "被压缩的文件目录不存在", vbExclamation, "警告"
+        Exit Function
+    End If
+    If Not FolderExist(strDesFolder) Then
+        MsgBox "保存压缩文件的目录不存在", vbExclamation, "警告"
+        Exit Function
+    End If
+    '源文件是否为空
+    If FolderNotNull(strSrcFolder) = 0 Then
+        MsgBox "被压缩的文件目录无可压缩文件", vbExclamation, "提醒"
+        Exit Function
+    End If
+    
+    strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")    '样式: D:\temp\，'\'有重要意义
+    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\") & "FC_" & Format(Now, "yyyy_MM_DD_HH_mm_ss") & ".rar"
+    
+    '生成压缩shell命令。'-k锁定文件，-v50M 以50M分卷，-r 连同子文件夹，-ep1 路径中不包含顶层文件夹
+    strCommand = strWinRAR & " a -v50M -s -k -r -ep1 " & strDes & " " & strSrc
+    If ShellWait(strCommand) Then
+        FileCompress = True '但是如果压缩过程被中断取消也是返回True的
+    End If
+    
+End Function
+
+Public Function FileExist(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
+    '判断 [文件] 是否存在
+    Dim strDir As String, strMid As String
+    
+    On Error Resume Next
+    strDir = Dir(strPath, vbHidden) '若存在则返回不带路径的文件名
+    If Len(strDir) > 0 Then
+        strMid = Mid(strPath, InStrRev(strPath, "\") + 1)   '获得不包含文件夹路径的文件名
+        If LCase(strMid) = LCase(strDir) Then   '相等则表示文件存在
+            If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
+                If GetAttr(strPath) <> vbNormal Then
+                    SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
+                End If
+            End If
+            FileExist = True
+        End If
+    End If
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+End Function
+
+Public Function FileExtract(ByVal strSrcFile As String, ByVal strDesFolder As String) As Boolean
+    '解压文件
+    
+    Dim strWinRAR As String, strSrc As String, strDes As String, strCommand As String
+    
+    strWinRAR = IIf(Right(App.Path, 1) = "\", App.Path, App.Path & "\") & "WinRAR.exe"
+    If Not FileExist(strWinRAR) Then  '压缩程序是否存在
+        MsgBox "WinRAR压缩应用程序不存在", vbExclamation, "警告"
+        Exit Function
+    End If
+    If Not FileExist(strSrcFile) Then '源文件与目的文件是否存在
+        MsgBox "被解压的文件不存在", vbExclamation, "警告"
+        Exit Function
+    End If
+    If Not FolderExist(strDesFolder) Then
+        MsgBox "解压后的文件存放目录不存在", vbExclamation, "警告"
+        Exit Function
+    End If
+        
+    strSrc = strSrcFile
+    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\")
+    
+    '生成压缩shell命令
+    strCommand = strWinRAR & " x " & strSrc & " " & strDes
+    If ShellWait(strCommand) Then
+        FileExtract = True
+    End If
+    
+End Function
+
+Public Function FileRestore(ByVal strFileSrc As String, ByVal strFolderDes As String, _
     Optional ByVal blnDecrypt As Boolean = True, _
     Optional ByVal strKey As String = mconStrKey) As Boolean
     '还原
@@ -549,7 +609,7 @@ Public Function RestoreFile(ByVal strFileSrc As String, ByVal strFolderDes As St
     Dim bytFile() As Byte, intFI As Integer, intSrc As Integer, intDes As Integer, lngSize As Long
 
     strFI = Left(strFileSrc, InStrRev(strFileSrc, ".") - 1) & mconStrBKrst '恢复文件的配置文件
-    If Not (DirFolder(strFolderDes) And DirFile(strFileSrc) And DirFile(strFI)) Then
+    If Not (FolderExist(strFolderDes) And FileExist(strFileSrc) And FileExist(strFI)) Then
         MsgBox "还原的源文件或还原位置不存在", vbCritical, "警告"
         Exit Function
     End If
@@ -590,11 +650,110 @@ Public Function RestoreFile(ByVal strFileSrc As String, ByVal strFolderDes As St
     Close intFI
     Close intSrc
     Close intDes
-    RestoreFile = True
+    FileRestore = True
     
 LineERR:
     Close   '关闭所有
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+End Function
+
+Public Function FolderExist(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
+    '判断 [文件夹] 是否存在
+    Dim strFod As String, strGet As String
+    
+    On Error Resume Next
+    If Len(Trim(strPath)) > 0 Then  '以防传入空字符串路径
+        If Right(strPath, 1) = "\" Then
+            If InStr(strPath, "\") <> InStrRev(strPath, "\") Then   '以防传入的是根目录
+                strPath = Left(strPath, Len(strPath) - 1) '非根目录则踢除末尾多余的"\"
+            End If
+        End If
+    End If
+    strFod = Dir(strPath, vbDirectory + vbHidden)
+    If Len(strFod) > 0 Then '说明有返回值
+        If strFod <> "." And strFod <> ".." Then    '若是空路径则返回"."
+            If InStr(strPath, "\") = InStrRev(strPath, "\") Then    '以防传入的是根目录如"D:\"
+                strGet = strPath
+            Else
+                strGet = Left(strPath, Len(strPath) - Len(strFod)) & strFod '正常情况下strFod值+上层目录=strPath
+            End If
+            If GetAttr(strGet) And vbDirectory = vbDirectory Then   '如果是文件夹或者存在的根目录
+                If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
+                    If GetAttr(strPath) <> vbNormal Then
+                        SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
+                    End If
+                End If
+                FolderExist = True
+            End If
+        End If
+    End If
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+End Function
+
+Public Function FolderNotNull(ByVal strFolderPath As String) As Boolean
+    '检查文件夹是否为空目录
+    Dim objFSO As Object, objFolder As Object, objFiles As Object
+    
+    If Not FolderExist(strFolderPath) Then Exit Function
+    
+    On Error Resume Next
+    
+    Set objFSO = CreateObject("Scripting.FileSystemObject")
+    Set objFolder = objFSO.GetFolder(strFolderPath)
+    Set objFiles = objFolder.Files
+    If objFiles.Count > 0 Then  '文件个数
+        FolderNotNull = True
+    ElseIf objFolder.SubFolders.Count > 0 Then  '文件夹个数
+        FolderNotNull = True
+    End If
+    
+    Set objFiles = Nothing
+    Set objFolder = Nothing
+    Set objFSO = Nothing
+
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+End Function
+
+Public Function ShellWait(ByVal strShellCommand As String) As Boolean
+    '等待Shell命令执行完成后再执行后面的代码，间接阻止Shell的异步执行.
+    Dim osInfo As OSVERSIONINFO
+    Dim Ret As Long, nSysVer As Long, pidNotePad As Long, hProcess As Long, lExitCode As Long
+    Dim strSave As String, Path As String, sCommPath As String, sExecString As String
+    
+    On Error Resume Next
+    
+    osInfo.dwOSVersionInfoSize = Len(osInfo) 'Set the structure size
+    Ret& = GetVersionEx(osInfo) 'Get the Windows version
+    If Ret& = 0 Then MsgBox "Error Getting Version Information" 'Chack for errors
+    nSysVer = osInfo.dwPlatformId
+
+    strSave = String(200, Chr$(0)) 'Create a buffer string
+    Path = Left$(strSave, GetWindowsDirectory(strSave, Len(strSave))) 'Get the windows directory
+    If Mid(Path, Len(Path), 1) <> "\" Then Path = Path & "\"
+    sCommPath = Path
+    If nSysVer = 1 Then 'windows98
+        sExecString = sCommPath + "command.com  /c " + strShellCommand
+    Else
+        sExecString = strShellCommand
+    End If
+    
+    pidNotePad = Shell(sExecString, vbHide) '返回执行程序的任务ID，不成功返回0
+    hProcess = OpenProcess(Process_query_infomation, True, pidNotePad)  '打开进程
+    Do
+        GetExitCodeProcess hProcess, lExitCode  '获取进程中断退出代码
+        DoEvents
+    Loop While lExitCode = Still_Active
+    CloseHandle (pidNotePad)    '关闭进程
+    
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical, "警告"
+    Else
+        ShellWait = True
     End If
 End Function
