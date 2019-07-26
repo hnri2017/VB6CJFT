@@ -10,6 +10,14 @@ Begin VB.Form frmBK
    ScaleHeight     =   6465
    ScaleWidth      =   11070
    StartUpPosition =   1  '所有者中心
+   Begin VB.CommandButton Command10 
+      Caption         =   "Test"
+      Height          =   495
+      Left            =   5160
+      TabIndex        =   15
+      Top             =   3960
+      Width           =   1215
+   End
    Begin VB.CommandButton Command9 
       Caption         =   "浏览"
       Height          =   375
@@ -155,16 +163,27 @@ Private Sub Command1_Click()
     '备份
     
     Call EnabledControl(Me, False)
-    If Not FileBackup(mstrBackup, mstrRestore) Then
+    If Not FilePackage(mstrBackup, mstrRestore) Then
         MsgBox "备份失败", vbCritical, "警告"
     End If
     Call EnabledControl(Me, True)
 End Sub
 
+Private Sub Command10_Click()
+'    MsgBox DriveFreeSpace(App.Path & "\ffc.exe")
+'    MsgBox DriveTotalSize(App.Path & "\ffc.exe")
+'    MsgBox FolderSize(App.Path)
+'    MsgBox FolderPathBuild("e:\a\b\c\")
+'    MsgBox FolderPathBuild("\\192.168.12.100\玮之度\部门数据\肖梦华\aa\bb\")
+'    MsgBox FolderPathBuild("\\192.168.12.120\玮之度\部门数据\肖梦华\aa\bb\")
+    MsgBox DriveLetter("\\192.168.12.100\玮之度\部门数据\肖梦华")
+    MsgBox DriveLetter("c:")
+End Sub
+
 Private Sub Command2_Click()
     '还原
     Call EnabledControl(Me, False)
-    If Not FileRestore(Me.Text2.Text, Me.Text1.Text) Then
+    If Not FileUnpack(Me.Text2.Text, Me.Text1.Text) Then
         MsgBox "还原失败", vbCritical, "警告"
     End If
     Call EnabledControl(Me, True)
@@ -198,7 +217,7 @@ Private Sub Command6_Click()
 End Sub
 
 Private Sub Command7_Click()
-    If FileCompress(Me.Text4.Text, Me.Text3.Text) Then
+    If FileCompress(Me.Text4.Text, Me.Text3.Text, 0) Then
         MsgBox "文件压缩完成", vbInformation, "提示"
     Else
         MsgBox "文件压缩失败", vbExclamation, "警告"

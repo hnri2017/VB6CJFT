@@ -177,12 +177,12 @@ Public Function EncryptString(ByVal str As String, password As String) As String
     Dim byt() As Byte
     Dim HASHALGORITHM As HASHALGORITHM
     Dim ENCALGORITHM As ENCALGORITHM
-On Error GoTo LineERR
+On Error GoTo LineErr
     byt = str
     HASHALGORITHM = MD5
     ENCALGORITHM = RC4
     EncryptString = BytesToHex(Encrypt(byt, password, HASHALGORITHM, ENCALGORITHM))
-LineERR:
+LineErr:
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical, "加密异常"
     End If
@@ -244,12 +244,12 @@ Public Function DecryptString(ByVal str As String, password As String) As String
     Dim byt() As Byte
     Dim HASHALGORITHM As HASHALGORITHM
     Dim ENCALGORITHM As ENCALGORITHM
-On Error GoTo LineERR
+On Error GoTo LineErr
     byt = HexToBytes(str)
     HASHALGORITHM = MD5
     ENCALGORITHM = RC4
     DecryptString = Decrypt(byt, password, HASHALGORITHM, ENCALGORITHM)
-LineERR:
+LineErr:
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical, "解密异常"
     End If
@@ -439,6 +439,92 @@ Private Function GetAddressofFunction(ByVal AddOf As Long) As Long
 End Function
 '--------------------------------------------------------------------------
 
+Public Function DriveFreeSpace(ByVal strPath As String) As Long
+    '返回磁盘剩余可用空间,单位MB
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveFreeSpace = objDrv.FreeSpace / 1024 / 1024
+    End If
+    
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+        DriveFreeSpace = -1
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function DriveLetter(ByVal strPath As String) As String
+    '返回磁盘的符号字母
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveLetter = objDrv.DriveLetter
+    End If
+    
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function DriveTotalSize(ByVal strPath As String) As Long
+    '返回磁盘总空间大小,单位MB
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveTotalSize = objDrv.TotalSize / 1024 / 1024
+    End If
+    
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+        DriveTotalSize = -1
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function DriveVolumeName(ByVal strPath As String) As String
+    '返回磁盘卷标名
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveLetter = objDrv.VolumeName
+    End If
+    
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
 Public Sub EnabledControl(ByRef frmEN As Form, Optional ByVal blnEN As Boolean = True)
     Dim ctlEn As VB.Control
     On Error Resume Next
@@ -448,74 +534,14 @@ Public Sub EnabledControl(ByRef frmEN As Form, Optional ByVal blnEN As Boolean =
     Screen.MousePointer = IIf(blnEN, 0, 13)
 End Sub
 
-Public Function FileBackup(ByVal strFolderSrc As String, ByVal strFolderDes As String, _
-    Optional ByVal blnEncrypt As Boolean = True, _
-    Optional ByVal strKey As String = mconStrKey) As Boolean
-    '备份
-    Dim strFS As String, strFD As String
-    Dim strFBK As String, strFind As String, strDir As String, strGet As String, strPre As String
-    Dim bytFile() As Byte, intSrc As Integer, intDes As Integer, lngSize As Long, bytEncrypt() As Byte
-    Dim strFR As String, intFR As Integer, strSize As String
+Public Function FileBackup() As Boolean
+    '文件备份
     
-    If Not (FolderExist(strFolderSrc) And FolderExist(strFolderDes)) Then
-        MsgBox "备份的源路径或目的路径不存在", vbCritical, "警告"
-        Exit Function
-    End If
-    If LCase(strFolderSrc) = LCase(strFolderDes) Then
-        MsgBox "备份的源路径或目的路径不能相同", vbCritical, "警告"
-        Exit Function
-    End If
     
-    On Error GoTo LineERR
-    strFD = IIf(Right(strFolderDes, 1) = "\", strFolderDes, strFolderDes & "\")
-    strFS = IIf(Right(strFolderSrc, 1) = "\", strFolderSrc, strFolderSrc & "\")
-    strPre = "fbk" & Format(Now, "yyyy-MM-dd-HH-mm-ss")
-    strFBK = strFD & strPre & mconStrBKbak
-    strFind = strFS & "*.*"
-    
-    strFR = strFD & strPre & mconStrBKrst
-    intFR = FreeFile
-    Open strFR For Output As #intFR
-    
-    intDes = FreeFile
-    Open strFBK For Binary As #intDes
-    strDir = Dir(strFind)
-    Do While Not Len(strDir) = 0
-        DoEvents
-        intSrc = FreeFile
-        strGet = strFS & strDir
-        lngSize = FileLen(strGet)
-        strSize = CStr(lngSize)
-        ReDim bytFile(lngSize - 1)
-        Open strGet For Binary As #intSrc
-        Get #intSrc, , bytFile '不加密时单个文件大约大于380MB时内存溢出报错
-        If blnEncrypt Then
-            bytEncrypt = EncryptByte(bytFile, strKey)   '加密时单个文件大约大于185MB时内存溢出报错
-            bytFile = bytEncrypt    '加密前后Byte数组的维数与大小相等
-            strDir = EncryptString(strDir, strKey)
-            strSize = EncryptString(strSize, strKey)
-        End If
-        Put #intDes, , bytFile
-        Close intSrc
-        Print #intFR, strDir & vbTab & strSize
-        strDir = Dir
-    Loop
-    Close intSrc
-    Close intDes
-    Close intFR
-    FileBackup = True
-    
-LineERR:
-    Close   '关闭所有
-    If Err.Number Then
-        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
-        If FileExist(strFBK) Then Kill strFBK '删除备份文件
-        If FileExist(strFR) Then Kill strFR
-    End If
 End Function
 
 Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As String, _
-            Optional ByVal MSize As Long = 50) As Boolean
+            Optional ByVal MSize As Long = 150) As Boolean
     '压缩文件
     Dim strWinRAR As String, strSrc As String, strDes As String, strSize As String, strCommand As String
     
@@ -539,8 +565,8 @@ Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As
     
     strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")    '样式: D:\temp\，'\'有重要意义
     strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\") & "FC_" & Format(Now, "yyyy_MM_DD_HH_mm_ss") & ".rar"
-    If MSize <= 0 Then MSize = 50
-    strSize = "-v" & MSize & "M"
+    If MSize < 0 Then MSize = 150
+    If MSize <> 0 Then strSize = "-v" & MSize & "M"
     '生成压缩shell命令。'-k锁定文件，-v50M 以50M分卷，-r 连同子文件夹，-ep1 路径中不包含顶层文件夹
     strCommand = strWinRAR & " a " & strSize & " -s -k -r -ep1 " & strDes & " " & strSrc
     If ShellWait(strCommand) Then
@@ -601,10 +627,82 @@ Public Function FileExtract(ByVal strSrcFile As String, ByVal strDesFolder As St
     
 End Function
 
-Public Function FileRestore(ByVal strFileSrc As String, ByVal strFolderDes As String, _
+Public Function FilePackage(ByVal strFolderSrc As String, ByVal strFolderDes As String, _
+    Optional ByVal blnEncrypt As Boolean = True, _
+    Optional ByVal strKey As String = mconStrKey) As Boolean
+    '将散文件打包成一个文件
+    Dim strFS As String, strFD As String
+    Dim strFBK As String, strFind As String, strDir As String, strGet As String, strPre As String
+    Dim bytFile() As Byte, intSrc As Integer, intDes As Integer, lngSize As Long, bytEncrypt() As Byte
+    Dim strFR As String, intFR As Integer, strSize As String
+    
+    If Not (FolderExist(strFolderSrc) And FolderExist(strFolderDes)) Then
+        MsgBox "源路径或目的路径不存在", vbCritical, "警告"
+        Exit Function
+    End If
+    If LCase(strFolderSrc) = LCase(strFolderDes) Then
+        MsgBox "源路径与目的路径不能相同", vbCritical, "警告"
+        Exit Function
+    End If
+    
+    On Error GoTo LineErr
+    strFD = IIf(Right(strFolderDes, 1) = "\", strFolderDes, strFolderDes & "\")
+    strFS = IIf(Right(strFolderSrc, 1) = "\", strFolderSrc, strFolderSrc & "\")
+    strPre = "fbk" & Format(Now, "yyyy-MM-dd-HH-mm-ss")
+    strFBK = strFD & strPre & mconStrBKbak
+    strFind = strFS & "*.*"
+    
+    strFR = strFD & strPre & mconStrBKrst
+    intFR = FreeFile
+    Open strFR For Output As #intFR
+    
+    intDes = FreeFile
+    Open strFBK For Binary As #intDes
+    strDir = Dir(strFind)
+    Do While Not Len(strDir) = 0
+        DoEvents
+        intSrc = FreeFile
+        strGet = strFS & strDir
+        lngSize = FileLen(strGet)
+        strSize = CStr(lngSize)
+        ReDim bytFile(lngSize - 1)
+        Open strGet For Binary As #intSrc
+        Get #intSrc, , bytFile '不加密时单个文件大约大于380MB时内存溢出报错
+        If blnEncrypt Then
+            bytEncrypt = EncryptByte(bytFile, strKey)   '加密时单个文件大约大于185MB时内存溢出报错
+            bytFile = bytEncrypt    '加密前后Byte数组的维数与大小相等
+            strDir = EncryptString(strDir, strKey)
+            strSize = EncryptString(strSize, strKey)
+        End If
+        Put #intDes, , bytFile
+        Close intSrc
+        Print #intFR, strDir & vbTab & strSize
+        strDir = Dir
+    Loop
+    Close intSrc
+    Close intDes
+    Close intFR
+    FilePackage = True
+    
+LineErr:
+    Close   '关闭所有打开的文件
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+        If FileExist(strFBK) Then Kill strFBK '删除文件
+        If FileExist(strFR) Then Kill strFR
+    End If
+End Function
+
+Public Function FileRestore() As Boolean
+    '还原文件
+    
+
+End Function
+
+Public Function FileUnpack(ByVal strFileSrc As String, ByVal strFolderDes As String, _
     Optional ByVal blnDecrypt As Boolean = True, _
     Optional ByVal strKey As String = mconStrKey) As Boolean
-    '还原
+    '将打好包的源文件还原成零散文件
     Dim strFS As String, strFD As String
     Dim strFI As String, strLine As String, strArr() As String, strFBK As String, bytDecrypt() As Byte
     Dim bytFile() As Byte, intFI As Integer, intSrc As Integer, intDes As Integer, lngSize As Long
@@ -619,7 +717,7 @@ Public Function FileRestore(ByVal strFileSrc As String, ByVal strFolderDes As St
         Exit Function
     End If
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     strFS = Left(strFileSrc, InStrRev(strFileSrc, "\"))
     strFD = IIf(Right(strFolderDes, 1) = "\", strFolderDes, strFolderDes & "\")
     
@@ -630,12 +728,12 @@ Public Function FileRestore(ByVal strFileSrc As String, ByVal strFolderDes As St
     While Not EOF(intFI)
         Line Input #intFI, strLine
         strArr = Split(strLine, vbTab)
-        If UBound(strArr) <> 1 Then GoTo LineERR
+        If UBound(strArr) <> 1 Then GoTo LineErr
         If blnDecrypt Then
             strArr(0) = DecryptString(strArr(0), strKey)
             strArr(1) = DecryptString(strArr(1), strKey)
         End If
-        If Not IsNumeric(strArr(1)) Then GoTo LineERR
+        If Not IsNumeric(strArr(1)) Then GoTo LineErr
         strFBK = strFD & strArr(0)
         ReDim bytFile(strArr(1) - 1)
         Get #intSrc, , bytFile
@@ -651,10 +749,10 @@ Public Function FileRestore(ByVal strFileSrc As String, ByVal strFolderDes As St
     Close intFI
     Close intSrc
     Close intDes
-    FileRestore = True
+    FileUnpack = True
     
-LineERR:
-    Close   '关闭所有
+LineErr:
+    Close   '关闭所有打开的文件
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
     End If
@@ -699,17 +797,17 @@ Public Function FolderNotNull(ByVal strFolderPath As String) As Boolean
     '检查文件夹是否为空目录
     Dim objFSO As Object, objFolder As Object, objFiles As Object
     
-    If Not FolderExist(strFolderPath) Then Exit Function
-    
     On Error Resume Next
     
-    Set objFSO = CreateObject("Scripting.FileSystemObject")
-    Set objFolder = objFSO.GetFolder(strFolderPath)
-    Set objFiles = objFolder.Files
-    If objFiles.Count > 0 Then  '文件个数
-        FolderNotNull = True
-    ElseIf objFolder.SubFolders.Count > 0 Then  '文件夹个数
-        FolderNotNull = True
+    If FolderExist(strFolderPath) Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objFolder = objFSO.GetFolder(strFolderPath)
+        Set objFiles = objFolder.Files
+        If objFiles.Count > 0 Then  '文件个数
+            FolderNotNull = True
+        ElseIf objFolder.SubFolders.Count > 0 Then  '文件夹个数
+            FolderNotNull = True
+        End If
     End If
     
     Set objFiles = Nothing
@@ -718,6 +816,50 @@ Public Function FolderNotNull(ByVal strFolderPath As String) As Boolean
 
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+End Function
+
+Public Function FolderPathBuild(ByVal strFolderPath As String) As Boolean
+    '文件夹路径不存在时新建
+    Dim strFod As String, strParentFolder As String, strNew As String
+    
+    On Error GoTo LineErr
+    
+    If FolderExist(strFolderPath) Then
+        FolderPathBuild = True
+    Else
+        strFod = IIf(Right(strFolderPath, 1) = "\", Left(strFolderPath, Len(strFolderPath) - 1), strFolderPath)
+        strParentFolder = Left(strFod, InStrRev(strFod, "\") - 1)   '获取上一级文件夹路径
+        If InStr(strParentFolder, "\") = 0 Then
+            strParentFolder = strParentFolder & "\" '防止根目录如C:在函数FolderExist中返回False
+        End If
+        If FolderPathBuild(strParentFolder) Then    '递归调用
+            MkDir strFod
+            FolderPathBuild = True
+        End If
+    End If
+    
+LineErr:
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+End Function
+
+Public Function FolderSize(ByVal strFolderPath As String) As Long
+    '返回文件夹的大小，单位MB
+    Dim objFSO As Object, objFod As Object
+    
+    On Error Resume Next
+    
+    If FolderExist(strFolderPath) Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objFod = objFSO.GetFolder(strFolderPath)
+        FolderSize = objFod.Size / 1024 / 1024
+    End If
+    
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+        FolderSize = -1
     End If
 End Function
 
