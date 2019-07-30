@@ -164,9 +164,11 @@ End Enum
 Dim HexMatrix(15, 15) As Byte
 '---------------------------------------------------------------------------
 
-Private Const mconStrKey As String = "ftkey" '公共密钥
-Private Const mconStrBKbak As String = ".bak"    '备份文件的
-Private Const mconStrBKrst As String = ".rst"    '备份配置文件扩展名
+Private Const mconStrKey As String = "ftkey"        '公共密钥
+Private Const mconStrBKbak As String = ".bak"       '备份文件的扩展名
+Private Const mconStrBKrst As String = ".rst"       '备份配置文件扩展名
+Private Const mconStrRar As String = ".rar"         '压缩文件扩展名
+Private Const mconLngSizeCompress As Long = 100     '压缩文件分卷大小，单位MB
 
 '---------------------------------------------------------------------------
 
@@ -439,7 +441,7 @@ Private Function GetAddressofFunction(ByVal AddOf As Long) As Long
 End Function
 '--------------------------------------------------------------------------
 
-Public Function DriveFreeSpace(ByVal strPath As String) As Long
+Public Function DriveFreeSpaceMB(ByVal strPath As String) As Long
     '返回磁盘剩余可用空间,单位MB
     Dim strDir As String
     Dim objFSO As Object, objDrv As Object
@@ -450,12 +452,12 @@ Public Function DriveFreeSpace(ByVal strPath As String) As Long
     If Len(strDir) > 0 Then
         Set objFSO = CreateObject("Scripting.FileSystemObject")
         Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
-        DriveFreeSpace = objDrv.FreeSpace / 1024 / 1024
+        DriveFreeSpaceMB = objDrv.FreeSpace / 1024 / 1024
     End If
     
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
-        DriveFreeSpace = -1
+        DriveFreeSpaceMB = -1
     End If
     Set objDrv = Nothing
     Set objFSO = Nothing
@@ -482,7 +484,7 @@ Public Function DriveLetter(ByVal strPath As String) As String
     Set objFSO = Nothing
 End Function
 
-Public Function DriveTotalSize(ByVal strPath As String) As Long
+Public Function DriveTotalSizeMB(ByVal strPath As String) As Long
     '返回磁盘总空间大小,单位MB
     Dim strDir As String
     Dim objFSO As Object, objDrv As Object
@@ -493,12 +495,12 @@ Public Function DriveTotalSize(ByVal strPath As String) As Long
     If Len(strDir) > 0 Then
         Set objFSO = CreateObject("Scripting.FileSystemObject")
         Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
-        DriveTotalSize = objDrv.TotalSize / 1024 / 1024
+        DriveTotalSizeMB = objDrv.TotalSize / 1024 / 1024
     End If
     
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
-        DriveTotalSize = -1
+        DriveTotalSizeMB = -1
     End If
     Set objDrv = Nothing
     Set objFSO = Nothing
@@ -515,7 +517,7 @@ Public Function DriveVolumeName(ByVal strPath As String) As String
     If Len(strDir) > 0 Then
         Set objFSO = CreateObject("Scripting.FileSystemObject")
         Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
-        DriveLetter = objDrv.VolumeName
+        DriveVolumeName = objDrv.VolumeName
     End If
     
     If Err.Number Then
@@ -534,14 +536,59 @@ Public Sub EnabledControl(ByRef frmEN As Form, Optional ByVal blnEN As Boolean =
     Screen.MousePointer = IIf(blnEN, 0, 13)
 End Sub
 
-Public Function FileBackup() As Boolean
-    '文件备份
+Public Function FileBackupCP(ByVal strSrcFolder As String, ByVal strDesFolder As String) As Boolean
+    '文件备份,先压缩再打包
+    Dim lngSizeSrc As Long, lngSizeDes As Long
+    Dim strPathTemp As String, strSrc As String, strDes As String
     
+    If Not FolderExist(strSrcFolder) Then
+        MsgBox "要备份的目录不存在", vbExclamation, "警告"
+        Exit Function
+    End If
+    If Not FolderExist(strDesFolder) Then
+        MsgBox "生成的备份文件的保存位置不存在", vbExclamation, "警告"
+        Exit Function
+    End If
     
+    lngSizeSrc = FolderSizeMB(strSrcFolder)
+    lngSizeDes = DriveFreeSpaceMB(strDesFolder)
+    If lngSizeSrc = -1 Or lngSizeDes = -1 Then
+        MsgBox "文件夹大小获取异常", vbExclamation, "警告"
+        Exit Function
+    End If
+    If lngSizeDes < lngSizeSrc * 2 Then
+        MsgBox "备份文件保存位置的空间不够", vbExclamation, "警告"
+        Exit Function
+    End If
+    
+    strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")
+    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\")
+    strPathTemp = strDes & "Temp" & Format(Now, "yyyyMMddHHmmss")
+    If FolderExist(strPathTemp, True) Then
+        Call FolderDelete(strPathTemp)    '删除也即清空临时文件夹
+    End If
+    If Not FolderPathBuild(strPathTemp) Then
+        MsgBox "临时文件夹异常", vbExclamation, "警告"
+        Exit Function
+    End If
+    
+    If Not FileCompress(strSrc, strPathTemp) Then
+        MsgBox "文件压缩异常", vbExclamation, "警告"
+        Exit Function
+    End If
+    
+    If FilePackage(strPathTemp, strDes) Then
+        Call FolderDelete(strPathTemp)
+    Else
+        MsgBox "文件打包异常", vbExclamation, "警告"
+        Exit Function
+    End If
+    
+    FileBackupCP = True
 End Function
 
 Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As String, _
-            Optional ByVal MSize As Long = 150) As Boolean
+            Optional ByVal MSize As Long = mconLngSizeCompress) As Boolean
     '压缩文件
     Dim strWinRAR As String, strSrc As String, strDes As String, strSize As String, strCommand As String
     
@@ -564,8 +611,8 @@ Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As
     End If
     
     strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")    '样式: D:\temp\，'\'有重要意义
-    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\") & "FC_" & Format(Now, "yyyy_MM_DD_HH_mm_ss") & ".rar"
-    If MSize < 0 Then MSize = 150
+    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\") & "FC_" & Format(Now, "yyyy_MM_DD_HH_mm_ss") & mconStrRar
+    If MSize < 0 Then MSize = mconLngSizeCompress
     If MSize <> 0 Then strSize = "-v" & MSize & "M"
     '生成压缩shell命令。'-k锁定文件，-v50M 以50M分卷，-r 连同子文件夹，-ep1 路径中不包含顶层文件夹
     strCommand = strWinRAR & " a " & strSize & " -s -k -r -ep1 " & strDes & " " & strSrc
@@ -669,6 +716,7 @@ Public Function FilePackage(ByVal strFolderSrc As String, ByVal strFolderDes As 
         Open strGet For Binary As #intSrc
         Get #intSrc, , bytFile '不加密时单个文件大约大于380MB时内存溢出报错
         If blnEncrypt Then
+'            ReDim bytEncrypt(lngSize - 1)
             bytEncrypt = EncryptByte(bytFile, strKey)   '加密时单个文件大约大于185MB时内存溢出报错
             bytFile = bytEncrypt    '加密前后Byte数组的维数与大小相等
             strDir = EncryptString(strDir, strKey)
@@ -693,10 +741,59 @@ LineErr:
     End If
 End Function
 
-Public Function FileRestore() As Boolean
+Public Function FileRestoreCP(ByVal strFileSrc As String, ByVal strFolderDes As String) As Boolean
     '还原文件
+    Dim lngSizeSrc As Long, lngSizeDes As Long
+    Dim strDes As String, strPathTemp As String, strPathFile As String
     
+    On Error Resume Next
+    If Not FileExist(strFileSrc) Then
+        MsgBox "还原的源文件不存在", vbCritical, "警告"
+        Exit Function
+    End If
+    If Not FolderExist(strFolderDes) Then
+        MsgBox "文件还原位置不存在", vbCritical, "警告"
+        Exit Function
+    End If
+    
+    lngSizeSrc = FileLen(strFileSrc) / 1024 / 1024
+    lngSizeDes = DriveFreeSpaceMB(strFolderDes)
+    If lngSizeDes < lngSizeSrc * 2 Then
+        MsgBox "还原位置空间不够", vbCritical, "警告"
+        Exit Function
+    End If
+    
+    strDes = IIf(Right(strFolderDes, 1) = "\", strFolderDes, strFolderDes & "\")
+    strPathTemp = strDes & "Temp" & Format(Now, "yyyyMMddHHmmss")
+    If FolderExist(strPathTemp) Then
+        Call FolderDelete(strPathTemp)
+    End If
+    If Not FolderPathBuild(strPathTemp) Then
+        MsgBox "临时文件夹创建异常", vbCritical, "警告"
+        Exit Function
+    End If
+    
+    If Not FileUnpack(strFileSrc, strPathTemp) Then
+        MsgBox "打包文件还原异常", vbCritical, "警告"
+        Exit Function
+    End If
+    
+    strPathFile = Dir(strPathTemp & "\*" & mconStrRar)
+    If InStr(strPathFile, mconStrRar) = 0 Then
+        MsgBox "解压文件中有异常", vbCritical, "警告"
+        Exit Function
+    Else
+        strPathFile = strPathTemp & "\" & strPathFile
+    End If
 
+    If FileExtract(strPathFile, strDes) Then
+        FileRestoreCP = True
+        Call FolderDelete(strPathTemp)
+    Else
+        MsgBox "文件解压异常", vbCritical, "警告"
+        Exit Function
+    End If
+    
 End Function
 
 Public Function FileUnpack(ByVal strFileSrc As String, ByVal strFolderDes As String, _
@@ -758,6 +855,27 @@ LineErr:
     End If
 End Function
 
+Public Function FolderDelete(ByVal strFolderPath As String) As Boolean
+    '删除指定文件夹
+    Dim objFSO As Object, objFod As Object
+    
+    On Error Resume Next
+    
+    If FolderExist(strFolderPath) Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objFod = objFSO.GetFolder(strFolderPath)
+        objFod.Delete True
+        DoEvents
+        FolderDelete = True
+    End If
+    
+    If Err.Number Then
+        MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
+    End If
+    Set objFod = Nothing
+    Set objFSO = Nothing
+End Function
+
 Public Function FolderExist(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
     '判断 [文件夹] 是否存在
     Dim strFod As String, strGet As String
@@ -810,13 +928,12 @@ Public Function FolderNotNull(ByVal strFolderPath As String) As Boolean
         End If
     End If
     
-    Set objFiles = Nothing
-    Set objFolder = Nothing
-    Set objFSO = Nothing
-
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
     End If
+    Set objFiles = Nothing
+    Set objFolder = Nothing
+    Set objFSO = Nothing
 End Function
 
 Public Function FolderPathBuild(ByVal strFolderPath As String) As Boolean
@@ -845,7 +962,7 @@ LineErr:
     End If
 End Function
 
-Public Function FolderSize(ByVal strFolderPath As String) As Long
+Public Function FolderSizeMB(ByVal strFolderPath As String) As Long
     '返回文件夹的大小，单位MB
     Dim objFSO As Object, objFod As Object
     
@@ -854,13 +971,15 @@ Public Function FolderSize(ByVal strFolderPath As String) As Long
     If FolderExist(strFolderPath) Then
         Set objFSO = CreateObject("Scripting.FileSystemObject")
         Set objFod = objFSO.GetFolder(strFolderPath)
-        FolderSize = objFod.Size / 1024 / 1024
+        FolderSizeMB = objFod.Size / 1024 / 1024
     End If
     
     If Err.Number Then
         MsgBox Err.Number & vbCrLf & Err.Description, vbCritical
-        FolderSize = -1
+        FolderSizeMB = -1
     End If
+    Set objFod = Nothing
+    Set objFSO = Nothing
 End Function
 
 Public Function ShellWait(ByVal strShellCommand As String) As Boolean

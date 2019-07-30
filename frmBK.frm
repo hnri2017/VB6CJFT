@@ -163,7 +163,9 @@ Private Sub Command1_Click()
     '备份
     
     Call EnabledControl(Me, False)
-    If Not FilePackage(mstrBackup, mstrRestore) Then
+    If FileBackupCP(Me.Text1.Text, Me.Text2.Text) Then
+        MsgBox "备份完成"
+    Else
         MsgBox "备份失败", vbCritical, "警告"
     End If
     Call EnabledControl(Me, True)
@@ -176,14 +178,19 @@ Private Sub Command10_Click()
 '    MsgBox FolderPathBuild("e:\a\b\c\")
 '    MsgBox FolderPathBuild("\\192.168.12.100\玮之度\部门数据\肖梦华\aa\bb\")
 '    MsgBox FolderPathBuild("\\192.168.12.120\玮之度\部门数据\肖梦华\aa\bb\")
-    MsgBox DriveLetter("\\192.168.12.100\玮之度\部门数据\肖梦华")
-    MsgBox DriveLetter("c:")
+'    MsgBox DriveLetter("\\192.168.12.100\玮之度\部门数据\肖梦华")
+'    MsgBox DriveLetter("c:")
+'    MsgBox FolderSizeMB("d:\backup")
+    MsgBox FilePackage(Me.Text1.Text, Me.Text2.Text)
+    
 End Sub
 
 Private Sub Command2_Click()
     '还原
     Call EnabledControl(Me, False)
-    If Not FileUnpack(Me.Text2.Text, Me.Text1.Text) Then
+    If FileRestoreCP(Me.Text2.Text, Me.Text1.Text) Then
+        MsgBox "还原完成"
+    Else
         MsgBox "还原失败", vbCritical, "警告"
     End If
     Call EnabledControl(Me, True)
