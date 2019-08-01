@@ -10,6 +10,18 @@ Begin VB.Form frmBK
    ScaleHeight     =   6465
    ScaleWidth      =   11070
    StartUpPosition =   1  '所有者中心
+   Begin VB.Timer Timer1 
+      Left            =   9240
+      Top             =   600
+   End
+   Begin VB.CommandButton Command11 
+      Caption         =   "Command11"
+      Height          =   615
+      Left            =   5640
+      TabIndex        =   16
+      Top             =   5640
+      Width           =   1215
+   End
    Begin VB.CommandButton Command10 
       Caption         =   "Test"
       Height          =   495
@@ -181,8 +193,13 @@ Private Sub Command10_Click()
 '    MsgBox DriveLetter("\\192.168.12.100\玮之度\部门数据\肖梦华")
 '    MsgBox DriveLetter("c:")
 '    MsgBox FolderSizeMB("d:\backup")
-    MsgBox FilePackage(Me.Text1.Text, Me.Text2.Text)
+'    MsgBox FilePackage(Me.Text1.Text, Me.Text2.Text)
+    MsgBox MsgBoxWaitA("information", vbYesNoCancel + vbQuestion)
     
+End Sub
+
+Private Sub Command11_Click()
+    MsgBox MsgBoxTimeOut(Me, "你要干嘛？", vbYesNoCancel + vbQuestion, "询问", 1)
 End Sub
 
 Private Sub Command2_Click()
@@ -224,7 +241,7 @@ Private Sub Command6_Click()
 End Sub
 
 Private Sub Command7_Click()
-    If FileCompress(Me.Text4.Text, Me.Text3.Text, 0) Then
+    If FileCompress(Me.Text4.Text, Me.Text3.Text, 0, True) Then
         MsgBox "文件压缩完成", vbInformation, "提示"
     Else
         MsgBox "文件压缩失败", vbExclamation, "警告"
@@ -253,4 +270,6 @@ Private Sub Form_Load()
     Me.Text2.Text = mstrData
     Me.Text3.Text = mstrData
     Me.Text4.Text = mstrStore
+    Me.Timer1.Enabled = True
 End Sub
+

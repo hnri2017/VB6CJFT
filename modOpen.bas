@@ -1,6 +1,10 @@
 Attribute VB_Name = "modOpen"
 Option Explicit
 
+Private Declare Function MessageBoxTimeout Lib "user32" Alias "MessageBoxTimeoutA" (ByVal hwnd As Long, _
+    ByVal lpText As String, ByVal lpCaption As String, ByVal wType As Long, _
+    ByVal wlange As Long, ByVal dwTimeout As Long) As Long
+'---------------------------------------------------------------------------------------
 
 '获取一个已中断进程的退出代码.非零表示成功，零表示失败
 Private Declare Function GetExitCodeProcess Lib "kernel32" (ByVal hProcess As Long, lpExitCode As Long) As Long
@@ -572,7 +576,7 @@ Public Function FileBackupCP(ByVal strSrcFolder As String, ByVal strDesFolder As
         Exit Function
     End If
     
-    If Not FileCompress(strSrc, strPathTemp) Then
+    If Not FileCompress(strSrc, strPathTemp, , True) Then
         MsgBox "文件压缩异常", vbExclamation, "警告"
         Exit Function
     End If
@@ -588,9 +592,10 @@ Public Function FileBackupCP(ByVal strSrcFolder As String, ByVal strDesFolder As
 End Function
 
 Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As String, _
-            Optional ByVal MSize As Long = mconLngSizeCompress) As Boolean
+            Optional ByVal MSize As Long = mconLngSizeCompress, _
+            Optional ByVal HideBack As Boolean = True) As Boolean
     '压缩文件
-    Dim strWinRAR As String, strSrc As String, strDes As String, strSize As String, strCommand As String
+    Dim strWinRAR As String, strSrc As String, strDes As String, strSize As String, strHide As String, strCommand As String
     
     strWinRAR = IIf(Right(App.Path, 1) = "\", App.Path, App.Path & "\") & "WinRAR.exe"
     If Not FileExist(strWinRAR) Then  '压缩程序是否存在
@@ -613,9 +618,10 @@ Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As
     strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")    '样式: D:\temp\，'\'有重要意义
     strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\") & "FC_" & Format(Now, "yyyy_MM_DD_HH_mm_ss") & mconStrRar
     If MSize < 0 Then MSize = mconLngSizeCompress
-    If MSize <> 0 Then strSize = "-v" & MSize & "M"
+    If MSize <> 0 Then strSize = "-v" & MSize & "M" '指定大小的分卷压缩
+    If HideBack Then strHide = " -ibck"            '压缩进度窗口最小化到任务栏区
     '生成压缩shell命令。'-k锁定文件，-v50M 以50M分卷，-r 连同子文件夹，-ep1 路径中不包含顶层文件夹
-    strCommand = strWinRAR & " a " & strSize & " -s -k -r -ep1 " & strDes & " " & strSrc
+    strCommand = strWinRAR & " a " & strSize & strHide & " -y -s -k -r -ep1 " & strDes & " " & strSrc
     If ShellWait(strCommand) Then
         FileCompress = True '但是如果压缩过程被中断取消也是返回True的
     End If
@@ -644,10 +650,11 @@ Public Function FileExist(ByVal strPath As String, Optional ByVal blnSetNormal A
     End If
 End Function
 
-Public Function FileExtract(ByVal strSrcFile As String, ByVal strDesFolder As String) As Boolean
+Public Function FileExtract(ByVal strSrcFile As String, ByVal strDesFolder As String, _
+                    Optional ByVal HideBack As Boolean = True) As Boolean
     '解压文件
     
-    Dim strWinRAR As String, strSrc As String, strDes As String, strCommand As String
+    Dim strWinRAR As String, strSrc As String, strDes As String, strHide As String, strCommand As String
     
     strWinRAR = IIf(Right(App.Path, 1) = "\", App.Path, App.Path & "\") & "WinRAR.exe"
     If Not FileExist(strWinRAR) Then  '压缩程序是否存在
@@ -667,7 +674,8 @@ Public Function FileExtract(ByVal strSrcFile As String, ByVal strDesFolder As St
     strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\")
     
     '生成压缩shell命令
-    strCommand = strWinRAR & " x " & strSrc & " " & strDes
+    If HideBack Then strHide = " -ibck "
+    strCommand = strWinRAR & " x -y " & strHide & strSrc & " " & strDes '-y对所有询问自动回应是
     If ShellWait(strCommand) Then
         FileExtract = True
     End If
@@ -980,6 +988,32 @@ Public Function FolderSizeMB(ByVal strFolderPath As String) As Long
     End If
     Set objFod = Nothing
     Set objFSO = Nothing
+End Function
+
+Public Function MsgBoxTimeOut(ByRef hForm As Form, ByVal Prompt As String, Optional ByVal Buttons As VbMsgBoxStyle = vbOKOnly + vbInformation, _
+        Optional ByVal Title As String = "", Optional ByVal SecondsToClose As Integer = 3) As VbMsgBoxResult
+    'MsgBox定时关闭
+    Dim MilliSeconds As Long
+    MilliSeconds = SecondsToClose * 1000
+    MsgBoxTimeOut = MessageBoxTimeout(hForm.hwnd, Prompt, Title, Buttons, 0, MilliSeconds)
+End Function
+
+
+
+Public Function MsgBoxWaitA(ByVal Prompt As String, Optional ByVal Buttons As VbMsgBoxStyle = vbOKOnly + vbInformation, _
+        Optional ByVal Title As String = "", Optional ByVal SecondsToWait As Integer = 3) As VbMsgBoxResult
+    '弹出的MsgBox到时自动退出。语法WshShell.Popup(strText, [natSecondsToWait], [strTitle], [natType]) = intButton
+    Dim objMsgBox As Object
+    
+    If Len(Trim(Title)) = 0 Then
+        If SecondsToWait > 0 Then
+            Title = "对话框" & CStr(SecondsToWait) & "秒后自动退出"
+        End If
+    End If
+    Buttons = Buttons Or vbSystemModal Or vbMsgBoxSetForeground
+    Set objMsgBox = CreateObject("WScript.Shell")
+    MsgBoxWaitA = objMsgBox.Popup(Prompt, SecondsToWait, Title, Buttons)
+    Set objMsgBox = Nothing
 End Function
 
 Public Function ShellWait(ByVal strShellCommand As String) As Boolean
