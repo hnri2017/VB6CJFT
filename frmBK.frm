@@ -194,8 +194,8 @@ Private Sub Command10_Click()
 '    MsgBox DriveLetter("c:")
 '    MsgBox FolderSizeMB("d:\backup")
 '    MsgBox FilePackage(Me.Text1.Text, Me.Text2.Text)
-    MsgBox MsgBoxWaitA("information", vbYesNoCancel + vbQuestion)
-    
+'    MsgBox MsgBoxWaitA("information", vbYesNoCancel + vbQuestion)
+    MsgBox MsgBoxAutoClose("OK", vbInformation + vbYesNoCancel, , 5)
 End Sub
 
 Private Sub Command11_Click()

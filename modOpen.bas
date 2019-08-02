@@ -1,6 +1,33 @@
 Attribute VB_Name = "modOpen"
 Option Explicit
 
+'---------------------------------------------------------------------------------------
+'MsgBox自动退出相关API与变量
+Private Declare Function SetWindowTextA Lib "user32" (ByVal hwnd As Long, ByVal lpString As String) As Long
+Private Declare Function timeSetEvent Lib "winmm.dll" (ByVal uDelay As Long, ByVal uResolution As Long, ByVal lpFunction As Long, ByVal dwUser As Long, ByVal uFlags As Long) As Long
+Private Declare Function timeKillEvent Lib "winmm.dll" (ByVal uID As Long) As Long
+Private Const TIME_PERIODIC As Long = 1  '  program for continuous periodic event
+Private Const TIME_ONESHOT As Long = 0 '  program timer for single event
+Rem Private MediaCount As Double '累加量
+
+Rem Private Declare Function SendMessage Lib "user32.dll" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByRef lParam As Any) As Long
+Private Const WM_GETTEXT As Long = &HD&
+Private Const WM_SETTEXT As Long = &HC&
+Private Const WM_CLOSE As Long = &H10&
+
+Private Declare Function GetClassName Lib "user32.dll" Alias "GetClassNameA" (ByVal hwnd As Long, ByVal lpClassName As String, ByVal nMaxCount As Long) As Long
+Private Declare Function EnumChildWindows Lib "user32.dll" (ByVal hWndParent As Long, ByVal lpEnumFunc As Long, ByVal lParam As Long) As Long
+Private Declare Function EnumWindows Lib "user32" (ByVal lpEnumFunc As Long, ByVal lParam As Long) As Boolean
+Private Declare Function GetWindowText Lib "user32" Alias "GetWindowTextA" (ByVal hwnd As Long, ByVal lpString As String, ByVal cch As Long) As Long
+Private Declare Function GetWindowTextLength Lib "user32" Alias "GetWindowTextLengthA" (ByVal hwnd As Long) As Long
+
+Private TimeID As Long      '返回多媒体记时器对象标识
+Private Dlghwnd As Long     '对话框句柄
+Private Dlgtexthwnd As Long '对话框提示文本句柄
+Private MsgBoxCloseTime As Long     '设置对话框关闭时间
+Private MsgBoxPromptText As String  '设置对话框提示文本
+Private MsgBoxTitleText As String   '设置对话框窗口标题文本
+
 Private Declare Function MessageBoxTimeout Lib "user32" Alias "MessageBoxTimeoutA" (ByVal hwnd As Long, _
     ByVal lpText As String, ByVal lpCaption As String, ByVal wType As Long, _
     ByVal wlange As Long, ByVal dwTimeout As Long) As Long
@@ -388,6 +415,7 @@ Public Sub MatrixInitialize()
 End Sub
 
 ''''
+'文件夹选择
 Public Function BrowseForFolder(ByRef Owner As Form, _
                                 Optional ByVal StartDir As String = "", _
                                 Optional ByVal Title As String = "请选择一个文件夹：") As String
@@ -539,6 +567,75 @@ Public Sub EnabledControl(ByRef frmEN As Form, Optional ByVal blnEN As Boolean =
     Next
     Screen.MousePointer = IIf(blnEN, 0, 13)
 End Sub
+'--------------------------------------------------------------------------
+
+'枚举所有顶级窗口
+Private Function EnumWindowsProc(ByVal hwnd As Long, ByVal lParam As Long) As Long
+    Dim WindowCaption As String, CaptionLength As Long, WindowClassName As String * 256
+    
+    CaptionLength = GetWindowTextLength(hwnd)
+    WindowCaption = Space(CaptionLength)
+    Call GetWindowText(hwnd, WindowCaption, CaptionLength + 1)
+    If InStr(1, WindowCaption, MsgBoxTitleText) > 0 Then
+        Dlghwnd = hwnd
+    End If
+    EnumWindowsProc = 1
+End Function
+
+'枚举所有子窗口
+Private Function EnumChildWindowsProc(ByVal hwnd As Long, ByVal lParam As Long) As Long
+    Dim WindowCaption As String, CaptionLength As Long, WindowClassName As String * 256
+    
+    CaptionLength = GetWindowTextLength(hwnd)
+    WindowCaption = Space(CaptionLength)
+    Call GetWindowText(hwnd, WindowCaption, CaptionLength + 1)
+    Call GetClassName(hwnd, WindowClassName, 256)
+    If InStr(1, WindowClassName, "Static") > 0 Then
+        Dlgtexthwnd = hwnd
+    End If
+    EnumChildWindowsProc = 1
+End Function
+
+'API函数timeSetEvent使用的回调函数
+Private Function TimeSetProc(ByVal uID As Long, ByVal uMsg As Long, ByVal dwUser As Long, ByVal dw1 As Long, ByVal dw2 As Long) As Long
+    Dim cText As String, nowTime As Long
+    Static MediaCount As Double ', Msghwnd1 As Long, Msghwnd2 As Long
+    
+    MediaCount = MediaCount + 0.5
+    If Dlgtexthwnd > 0 Then
+        nowTime = MsgBoxCloseTime - Fix(MediaCount)
+        If nowTime <= 0 Then
+            Call SendMessage(Dlghwnd, WM_CLOSE, 0, 0) '时间到，关闭对话框
+            Call timeKillEvent(TimeID)  '删除多媒体计时器标识
+            MediaCount = 0
+        End If
+        cText = MsgBoxPromptText & vbCrLf & "（窗口在" & CStr(nowTime) & "秒后自动关闭）"
+        Call SendMessage(Dlgtexthwnd, WM_SETTEXT, Len(cText), ByVal cText)
+    Else
+        Call EnumWindows(AddressOf EnumWindowsProc, 0)
+        If Dlghwnd > 0 Then
+            Call EnumChildWindows(Dlghwnd, AddressOf EnumChildWindowsProc, 0)
+        End If
+    End If
+    TimeSetProc = 1
+End Function
+
+'定时关闭对话框：SecondsToClose参数设置对话框关闭时间；MsgPrompt参数设置对话框提示文本；vbButtons参数是设置对话框按钮及图标。
+Public Function MsgBoxAutoClose(ByVal MsgPrompt As String, Optional vbButtons As VbMsgBoxStyle = vbOKOnly, _
+        Optional ByVal MsgTitle As String = "对话框", Optional ByVal SecondsToClose As Long = 10) As Long
+    Dim Information As Long
+    
+    Dlghwnd = 0
+    Dlgtexthwnd = 0
+    MsgBoxCloseTime = SecondsToClose
+    MsgBoxPromptText = MsgPrompt
+    MsgBoxTitleText = MsgTitle
+    TimeID = timeSetEvent(500, 0, AddressOf TimeSetProc, 1, TIME_PERIODIC)  '时间间隔为500毫秒
+    Information = MsgBox(MsgBoxPromptText & vbCrLf & vbCrLf, vbButtons, MsgBoxTitleText)     '定义msgbox对话框
+    Call timeKillEvent(TimeID)  '删除多媒体计时器标识
+    MsgBoxAutoClose = Information  '返回按键值
+End Function
+'--------------------------------------------------------------------------
 
 Public Function FileBackupCP(ByVal strSrcFolder As String, ByVal strDesFolder As String) As Boolean
     '文件备份,先压缩再打包
