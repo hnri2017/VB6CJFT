@@ -6,9 +6,9 @@ Option Explicit
 Private Declare Function SetWindowTextA Lib "user32" (ByVal hwnd As Long, ByVal lpString As String) As Long
 Private Declare Function timeSetEvent Lib "winmm.dll" (ByVal uDelay As Long, ByVal uResolution As Long, ByVal lpFunction As Long, ByVal dwUser As Long, ByVal uFlags As Long) As Long
 Private Declare Function timeKillEvent Lib "winmm.dll" (ByVal uID As Long) As Long
-Private Const TIME_PERIODIC As Long = 1  '  program for continuous periodic event
-Private Const TIME_ONESHOT As Long = 0 '  program timer for single event
-Rem Private MediaCount As Double '累加量
+Private Const TIME_PERIODIC As Long = 1 'program for continuous periodic event
+Private Const TIME_ONESHOT As Long = 0  'program timer for single event
+Private Const DelayTime As Long = 500   'API函数timeSetEvent的计时器间隔时间毫秒
 
 Rem Private Declare Function SendMessage Lib "user32.dll" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByRef lParam As Any) As Long
 Private Const WM_GETTEXT As Long = &HD&
@@ -24,6 +24,7 @@ Private Declare Function GetWindowTextLength Lib "user32" Alias "GetWindowTextLe
 Private TimeID As Long      '返回多媒体记时器对象标识
 Private Dlghwnd As Long     '对话框句柄
 Private Dlgtexthwnd As Long '对话框提示文本句柄
+Private MediaCount As Double    '倒计时的累加量
 Private MsgBoxCloseTime As Long     '设置对话框关闭时间
 Private MsgBoxPromptText As String  '设置对话框提示文本
 Private MsgBoxTitleText As String   '设置对话框窗口标题文本
@@ -596,20 +597,24 @@ Private Function EnumChildWindowsProc(ByVal hwnd As Long, ByVal lParam As Long) 
     EnumChildWindowsProc = 1
 End Function
 
+Private Function TimeOutString(ByVal strTimeOut As String) As String
+    '返回倒计时字串
+    strTimeOut = CStr(Val(strTimeOut))
+    TimeOutString = "(窗口将在" & strTimeOut & "秒后关闭)"
+End Function
+
 'API函数timeSetEvent使用的回调函数
 Private Function TimeSetProc(ByVal uID As Long, ByVal uMsg As Long, ByVal dwUser As Long, ByVal dw1 As Long, ByVal dw2 As Long) As Long
     Dim cText As String, nowTime As Long
-    Static MediaCount As Double ', Msghwnd1 As Long, Msghwnd2 As Long
     
-    MediaCount = MediaCount + 0.5
+    MediaCount = MediaCount + DelayTime / 1000
     If Dlgtexthwnd > 0 Then
         nowTime = MsgBoxCloseTime - Fix(MediaCount)
         If nowTime <= 0 Then
             Call SendMessage(Dlghwnd, WM_CLOSE, 0, 0) '时间到，关闭对话框
             Call timeKillEvent(TimeID)  '删除多媒体计时器标识
-            MediaCount = 0
         End If
-        cText = MsgBoxPromptText & vbCrLf & "（窗口在" & CStr(nowTime) & "秒后自动关闭）"
+        cText = MsgBoxPromptText & vbCrLf & TimeOutString(nowTime)
         Call SendMessage(Dlgtexthwnd, WM_SETTEXT, Len(cText), ByVal cText)
     Else
         Call EnumWindows(AddressOf EnumWindowsProc, 0)
@@ -621,19 +626,22 @@ Private Function TimeSetProc(ByVal uID As Long, ByVal uMsg As Long, ByVal dwUser
 End Function
 
 '定时关闭对话框：SecondsToClose参数设置对话框关闭时间；MsgPrompt参数设置对话框提示文本；vbButtons参数是设置对话框按钮及图标。
-Public Function MsgBoxAutoClose(ByVal MsgPrompt As String, Optional vbButtons As VbMsgBoxStyle = vbOKOnly, _
-        Optional ByVal MsgTitle As String = "对话框", Optional ByVal SecondsToClose As Long = 10) As Long
-    Dim Information As Long
+Public Function MsgBoxAutoClose(Optional ByVal MsgPrompt As String = "提示信息", _
+        Optional ByVal vbButtons As VbMsgBoxStyle = vbOKOnly + vbInformation, _
+        Optional ByVal MsgTitle As String = "对话框", _
+        Optional ByVal SecondsToClose As Long = 10) As VBA.VbMsgBoxResult
+    Dim RetButton As Long '参数值含vbAbortRetryIgnore或vbYesNo时无法自动关闭对话框
     
     Dlghwnd = 0
     Dlgtexthwnd = 0
     MsgBoxCloseTime = SecondsToClose
     MsgBoxPromptText = MsgPrompt
     MsgBoxTitleText = MsgTitle
-    TimeID = timeSetEvent(500, 0, AddressOf TimeSetProc, 1, TIME_PERIODIC)  '时间间隔为500毫秒
-    Information = MsgBox(MsgBoxPromptText & vbCrLf & vbCrLf, vbButtons, MsgBoxTitleText)     '定义msgbox对话框
+    TimeID = timeSetEvent(DelayTime, 0, AddressOf TimeSetProc, 1, TIME_PERIODIC)  '时间间隔为500毫秒
+    RetButton = MsgBox(MsgBoxPromptText & vbCrLf & TimeOutString(MsgBoxCloseTime), vbButtons, MsgBoxTitleText)      '定义msgbox对话框
     Call timeKillEvent(TimeID)  '删除多媒体计时器标识
-    MsgBoxAutoClose = Information  '返回按键值
+    MediaCount = 0  '清空累计时间
+    MsgBoxAutoClose = RetButton  '返回按键值
 End Function
 '--------------------------------------------------------------------------
 
@@ -1092,10 +1100,8 @@ Public Function MsgBoxTimeOut(ByRef hForm As Form, ByVal Prompt As String, Optio
     'MsgBox定时关闭
     Dim MilliSeconds As Long
     MilliSeconds = SecondsToClose * 1000
-    MsgBoxTimeOut = MessageBoxTimeout(hForm.hwnd, Prompt, Title, Buttons, 0, MilliSeconds)
+    MsgBoxTimeOut = MessageBoxTimeout(hForm.hwnd, Prompt, Title, Buttons, 0, MilliSeconds) '直接调用API函数传参
 End Function
-
-
 
 Public Function MsgBoxWaitA(ByVal Prompt As String, Optional ByVal Buttons As VbMsgBoxStyle = vbOKOnly + vbInformation, _
         Optional ByVal Title As String = "", Optional ByVal SecondsToWait As Integer = 3) As VbMsgBoxResult

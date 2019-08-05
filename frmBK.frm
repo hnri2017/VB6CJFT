@@ -14,14 +14,6 @@ Begin VB.Form frmBK
       Left            =   9240
       Top             =   600
    End
-   Begin VB.CommandButton Command11 
-      Caption         =   "Command11"
-      Height          =   615
-      Left            =   5640
-      TabIndex        =   16
-      Top             =   5640
-      Width           =   1215
-   End
    Begin VB.CommandButton Command10 
       Caption         =   "Test"
       Height          =   495
@@ -194,12 +186,12 @@ Private Sub Command10_Click()
 '    MsgBox DriveLetter("c:")
 '    MsgBox FolderSizeMB("d:\backup")
 '    MsgBox FilePackage(Me.Text1.Text, Me.Text2.Text)
-'    MsgBox MsgBoxWaitA("information", vbYesNoCancel + vbQuestion)
-    MsgBox MsgBoxAutoClose("OK", vbInformation + vbYesNoCancel, , 5)
-End Sub
-
-Private Sub Command11_Click()
-    MsgBox MsgBoxTimeOut(Me, "你要干嘛？", vbYesNoCancel + vbQuestion, "询问", 1)
+'    MsgBox MsgBoxWaitA("information", vbYesNo + vbQuestion)
+'    MsgBox MsgBoxAutoClose("OK", vbInformation + vbYesNo, , 5) '使用vbYesNo按钮时无法自动退出
+'    MsgBox MsgBoxAutoClose("OK", vbInformation + vbAbortRetryIgnore, , 5)'使用vbAbortRetryIgnore按钮时无法自动退出
+'    MsgBox MsgBoxAutoClose("请做出选择", vbOKOnly, , 5)
+    MsgBox MsgBoxAutoClose
+    
 End Sub
 
 Private Sub Command2_Click()
