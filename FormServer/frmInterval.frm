@@ -85,16 +85,16 @@ Begin VB.Form frmInterval
          Width           =   855
       End
       Begin MSComCtl2.DTPicker DTPicker1 
-         Height          =   300
+         Height          =   400
          Left            =   240
          TabIndex        =   7
          Top             =   720
          Width           =   2000
          _ExtentX        =   3519
-         _ExtentY        =   529
+         _ExtentY        =   714
          _Version        =   393216
          CustomFormat    =   "HH:mm:ss"
-         Format          =   100204546
+         Format          =   104398850
          CurrentDate     =   43680.8125
       End
    End

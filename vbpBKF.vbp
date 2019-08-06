@@ -5,6 +5,7 @@ Form=frmBK.frm
 Module=modOpen; modOpen.bas
 Form=frmInterval.frm
 Object={86CF1D34-0C5F-11D2-A9FC-0000F8754DA1}#2.0#0; MSCOMCT2.OCX
+Object={E08BA07E-6463-4EAB-8437-99F08000BAD9}#1.9#0; FlexCell.ocx
 IconForm="frmBK"
 Startup="frmInterval"
 HelpFile=""

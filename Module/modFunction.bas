@@ -31,7 +31,7 @@ End Type
 
 Private m_CurrentDirectory As String   'The current directory
 
-Private Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As String) As Long
+Private Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As String) As Long
 Private Declare Function SHBrowseForFolder Lib "shell32" (lpbi As BrowseInfo) As Long
 Private Declare Function SHGetPathFromIDList Lib "shell32" (ByVal pidList As Long, ByVal lpBuffer As String) As Long
 Private Declare Function lstrcat Lib "kernel32" Alias "lstrcatA" (ByVal lpString1 As String, ByVal lpString2 As String) As Long
@@ -49,7 +49,7 @@ Public Function BrowseForFolder(ByRef Owner As Form, _
 
     szTitle = Title
     With tBrowseInfo
-        .hWndOwner = Owner.hWnd
+        .hWndOwner = Owner.hwnd
         .lpszTitle = lstrcat(szTitle, "")
         .ulFlags = BIF_RETURNONLYFSDIRS + BIF_DONTGOBELOWDOMAIN + BIF_STATUSTEXT + BIF_RETURNFSANCESTORS _
                  + BIF_EDITBOX + BIF_VALIDATE + BIF_NEWDIALOGSTYLE  '=1+2+4+8+16+32+64=112
@@ -68,21 +68,21 @@ Public Function BrowseForFolder(ByRef Owner As Form, _
   
 End Function
 
-Private Function BrowseCallbackProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal lp As Long, ByVal pData As Long) As Long
+Private Function BrowseCallbackProc(ByVal hwnd As Long, ByVal uMsg As Long, ByVal lp As Long, ByVal pData As Long) As Long
     Dim lpIDList As Long
-    Dim ret As Long
+    Dim Ret As Long
     Dim sBuffer As String
     
     On Error Resume Next
     
     Select Case uMsg
         Case BFFM_INITIALIZED
-            Call SendMessage(hWnd, BFFM_SETSelectION, 1, m_CurrentDirectory)
+            Call SendMessage(hwnd, BFFM_SETSelectION, 1, m_CurrentDirectory)
         Case BFFM_SELCHANGED
             sBuffer = Space(MAX_PATH)
-            ret = SHGetPathFromIDList(lp, sBuffer)
-            If ret = 1 Then
-                Call SendMessage(hWnd, BFFM_SETSTATUSTEXT, 0, sBuffer)
+            Ret = SHGetPathFromIDList(lp, sBuffer)
+            If Ret = 1 Then
+                Call SendMessage(hwnd, BFFM_SETSTATUSTEXT, 0, sBuffer)
             End If
         End Select
     BrowseCallbackProc = 0
@@ -475,11 +475,11 @@ End Function
 
 Public Function gfFileIsRun(ByVal pFile As String) As Boolean
     '判断文件是否被打开(在运行)
-    Dim ret As Long
+    Dim Ret As Long
     
-    ret = CreateFile(pFile, GENERIC_READ Or GENERIC_WRITE, 0&, vbNullString, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0&)
-    gfFileIsRun = (ret = INVALID_HANDLE_VALUE)
-    CloseHandle ret
+    Ret = CreateFile(pFile, GENERIC_READ Or GENERIC_WRITE, 0&, vbNullString, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0&)
+    gfFileIsRun = (Ret = INVALID_HANDLE_VALUE)
+    CloseHandle Ret
     '经小部分测试，似乎没用，只能判断可执行文件？
 End Function
 
@@ -666,7 +666,7 @@ Public Function gfGetRegNumericValue(ByVal AppName As String, ByVal Section As S
     '使GetSetting函数返回整形数值,，但这个值不能超出最小与最大值，超出以最小值返回
     Dim lngGet As Long
     
-    lngGet = GetSetting(AppName, Section, Key, Default)
+    lngGet = Val(GetSetting(AppName, Section, Key, Default))
     If inMinMax Then
         If lngGet < nMin Or lngGet > nMax Then lngGet = Default
     End If
@@ -765,3 +765,74 @@ Public Function gfStringCheck(ByVal strIn As String) As String
     Next
 
 End Function
+
+Public Function ShowBackupTimeInfo(ByVal BKInterval As Long, ByVal BKDate As Date) As String
+    '转化备份频率与备份时间
+    Dim strShow As String, strNext As String
+    
+    Select Case BKInterval
+        Case 0
+            strShow = "无"
+        Case 1
+            strShow = Format(BKDate, "每天 HH:mm:ss")
+        Case 2
+            strShow = Format(BKDate, "每周dddd HH:mm:ss")
+        Case 3
+            strShow = Format(BKDate, "每月d日 HH:mm:ss")
+        Case 4
+            strShow = Format(BKDate, "每年M月d日 HH:mm:ss")
+        Case 5
+            strShow = Format(BKDate, "每d天 HH:mm:ss")
+        Case Else
+            strShow = "未定义"
+    End Select
+
+End Function
+
+Public Function ShowBackupNextTime(ByVal BKInterval As Long, ByVal BKDate As Date) As String
+    '转化备份频率与备份时间
+    Dim strShow As String
+    Dim NowTime As Date, BackTime As Date, NextDay As Date
+    Dim NowWeek As Long, BKWeek As Long
+    Dim NowDay As Long, BKDay As Long, NowMonth As Long, BKMonth As Long
+    
+    NowTime = Time
+    BackTime = Format(BKDate, "HH:mm:ss")
+    NowWeek = Weekday(Date)
+    BKWeek = Weekday(BKDate)
+    NowDay = Day(Date)
+    BKDay = Day(BKDate)
+    NowMonth = Month(Date)
+    BKMonth = Month(BKDate)
+    
+    Select Case BKInterval
+        Case 0
+            strShow = "无"
+        Case 1  '每天
+            If NowTime <= BackTime Then
+                NextDay = Date
+            Else
+                NextDay = Date + 1
+            End If
+        Case 2  '每周
+            If NowWeek <= BKWeek Then
+                NextDay = Date + (BKWeek - NowWeek)
+            Else
+                NextDay = Date + (7 - NowWeek + BKWeek)
+            End If
+        Case 3  '每月
+            If NowDay <= BKDay Then
+                NextDay = Date + (BKDay - NowDay)
+            Else
+                NextDay = CDate(Format(Now, "yyyy-") & Format((Month(Date) + 1), "00-") & Format(BKDay, "00"))
+            End If
+        Case 4  '每年
+            
+        Case 5  '每N天
+            
+        Case Else
+            strShow = "未定义"
+    End Select
+    strShow = Format(NextDay, "yyyy-MM-dd ") & Format(BKDate, "HH:mm:ss")
+End Function
+

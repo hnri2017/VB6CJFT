@@ -324,6 +324,8 @@ Public Type gtypeCommonVariant
     RegKeyDBServerAccount As String   '数据库服务器连接账号
     RegKeyDBServerPassword As String  '数据库服务器连接密码
     RegKeyServerBackStore As String     '服务器端资料文件备份路径
+    RegKeyServerBackInterval As String  '备份频率
+    RegKeyServerBackTime As String      '备份时间
         
     RegSectionUser As String    'Section_用户信息
     RegKeyUserLast As String    '最后登陆用户名
@@ -447,7 +449,9 @@ Public Type gtypeCommonVariant
     ParaBlnRememberUserPassword As Boolean  '记住密码
     ParaBlnUserAutoLogin As Boolean '自动登陆
     
-    ParaBackupStore As String   '备份路径
+    ParaBackupPath As String   '备份路径
+    ParaBackupInterval As String    '备份频率
+    ParaBackupTime As String        '备份时间
     
     FTUploadOrDownload As Boolean   '上传(True)还是下载(False)状态
     FTUploadFilePath As String      '上传文件的各项信息

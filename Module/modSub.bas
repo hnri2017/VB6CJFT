@@ -235,7 +235,9 @@ Public Sub Main(Optional ByVal blnLoad As Boolean = True)
         .RegKeyDBServerDatabase = "ServerDatabase"
         .RegKeyDBServerIP = "ServerIP"
         .RegKeyDBServerPassword = "ServerPassword"
-        .RegKeyServerBackStore = "BackStore"
+        .RegKeyServerBackStore = "BackupStore"
+        .RegKeyServerBackInterval = "BackupInterval"
+        .RegKeyServerBackTime = "BackupTime"
         
         .RegSectionUser = "UserInfo"
         .RegKeyUserLast = "LastLoginUser"

@@ -111,7 +111,8 @@ Private Sub msLoadParameter(Optional ByVal blnLoad As Boolean = True)
         
         '服务端文件备份参数
         lngRow = lngRow + 4
-        .Cell(lngRow, 3).Text = gVar.ParaBackupStore '备份路径
+        .Cell(lngRow, 3).Text = gVar.ParaBackupPath '备份路径
+        
     End With
     
 End Sub
@@ -153,7 +154,7 @@ Private Sub msSaveParameter(Optional ByVal blnSave As Boolean = True)
         
         '服务端文件备份参数
         lngRow = lngRow + 4
-        gVar.ParaBackupStore = mfCheckFolder(.Cell(lngRow, 3).Text) '备份路径
+        gVar.ParaBackupPath = mfCheckFolder(.Cell(lngRow, 3).Text) '备份路径
     End With
     
     '参数值通过公用变量保存进注册表中
@@ -184,7 +185,7 @@ Private Sub msSaveParameter(Optional ByVal blnSave As Boolean = True)
         Call SaveSetting(.RegAppName, .RegSectionTCP, .RegKeyParaLimitClientConnectNumber, .TCPConnectMax) '限制客户端连接数
         
         '服务端文件备份参数
-        Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackStore, .ParaBackupStore) '备份路径
+        Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackStore, .ParaBackupPath) '备份路径
     End With
     
     Call msLoadParameter(True)  '窗口重新加载一次保存后的值
@@ -246,7 +247,7 @@ Private Sub Grid1_ButtonClick(ByVal Row As Long, ByVal Col As Long)
     lngRow = 19 '浏览按键所在行号
     lngCol = 3  '浏览按键所在列号
     
-    If Row = lngRow And Col = lngCol Then    '选择文件保存路径
+    If Row = lngRow And Col = lngCol Then    '备份文件保存路径选择
 '''        With CommonDialog1   '权宜之计用法。舍弃了
 '''            .DialogTitle = "备份路径选择"
 '''            .Flags = cdlOFNPathMustExist  '路径必须存在且有效 cdlOFNCreatePrompt=cdlOFNFileMustExist + cdlOFNPathMustExist
@@ -265,6 +266,9 @@ Private Sub Grid1_ButtonClick(ByVal Row As Long, ByVal Col As Long)
             If Not Right(strPath, 1) = "\" Then strPath = strPath & "\"
             Grid1.Cell(lngRow, lngCol).Text = strPath
         End If
+        
+    ElseIf Row = 20 And Col = 3 Then    '备份频率设置
+        Call gsOpenTheWindow("frmInterval", vbModal, vbNormal)
     End If
 End Sub
 
@@ -302,7 +306,7 @@ Private Sub Grid1_KeyDown(KeyCode As Integer, ByVal Shift As Integer)
 
     intRow = Grid1.ActiveCell.Row
     intCol = Grid1.ActiveCell.Col
-    If intRow = 19 And intCol = 3 Then  '屏蔽输入：备份路径
+    If (intRow = 19 Or intRow = 20) And intCol = 3 Then '屏蔽输入：备份路径,备份频率
         KeyCode = 0
     End If
 End Sub
@@ -312,7 +316,7 @@ Private Sub Grid1_KeyPress(KeyAscii As Integer)
 
     intRow = Grid1.ActiveCell.Row
     intCol = Grid1.ActiveCell.Col
-    If intRow = 19 And intCol = 3 Then  '屏蔽输入：备份路径
+    If (intRow = 19 Or intRow = 20) And intCol = 3 Then  '屏蔽输入：备份路径,备份频率
         KeyAscii = 0
     End If
 End Sub
