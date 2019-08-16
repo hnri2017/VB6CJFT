@@ -326,6 +326,7 @@ Public Type gtypeCommonVariant
     RegKeyServerBackStore As String     '服务器端资料文件备份路径
     RegKeyServerBackInterval As String  '备份频率
     RegKeyServerBackTime As String      '备份时间
+    RegKeyServerBackIntervalDays As String  '每N天备份间隔天数
         
     RegSectionUser As String    'Section_用户信息
     RegKeyUserLast As String    '最后登陆用户名
@@ -452,6 +453,7 @@ Public Type gtypeCommonVariant
     ParaBackupPath As String   '备份路径
     ParaBackupInterval As String    '备份频率
     ParaBackupTime As String        '备份时间
+    ParaBackupIntervalDays As String '每N天的间隔天数
     
     FTUploadOrDownload As Boolean   '上传(True)还是下载(False)状态
     FTUploadFilePath As String      '上传文件的各项信息

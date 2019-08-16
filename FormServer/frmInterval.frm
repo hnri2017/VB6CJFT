@@ -14,7 +14,7 @@ Begin VB.Form frmInterval
    ScaleWidth      =   8475
    StartUpPosition =   1  '所有者中心
    Begin VB.CommandButton Command1 
-      Caption         =   "保存"
+      Caption         =   "确定"
       Height          =   495
       Left            =   6840
       TabIndex        =   6
@@ -94,7 +94,7 @@ Begin VB.Form frmInterval
          _ExtentY        =   714
          _Version        =   393216
          CustomFormat    =   "HH:mm:ss"
-         Format          =   104398850
+         Format          =   102891522
          CurrentDate     =   43680.8125
       End
    End
@@ -107,14 +107,49 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private Sub Command1_Click()
-    '保存
+    '确定
+    Dim K As Long
     
+    If MsgBox("确定保存当前设置吗？", vbQuestion + vbOKCancel, "提醒") = vbCancel Then Exit Sub
+    
+    For K = Me.Option1.LBound To Me.Option1.UBound
+        If Me.Option1.Item(K).Value Then
+            With gVar
+                .ParaBackupInterval = K
+                If K = 5 Then
+                    .ParaBackupTime = Format(Date, "yyyy-MM-dd ") & Format(Me.DTPicker1.Value, "HH:mm:ss")
+                    .ParaBackupIntervalDays = Me.DTPicker1.Day
+                Else
+                    .ParaBackupTime = Format(Me.DTPicker1.Value, "yyyy-MM-dd HH:mm:ss")
+                End If
+                Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackInterval, .ParaBackupInterval) '备份频率
+                Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackTime, .ParaBackupTime) '备份确切时间
+                Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackIntervalDays, .ParaBackupIntervalDays) '每N天
+            End With
+            
+            Dim frmOP As Form
+            For Each frmOP In Forms
+                If LCase(frmOP.Name) = LCase(gWind.CommandBars1.Actions(gID.toolOptions).Key) Then
+                    frmOP.Command1.Value = True '重新加载参数
+                    Exit For
+                End If
+            Next
+            Exit For
+        End If
+    Next
 End Sub
 
 Private Sub Form_Load()
     Me.DTPicker1.Format = dtpCustom
-    Me.DTPicker1.Value = "19:00:00"
     Me.DTPicker1.UpDown = True
+    Me.DTPicker1.Value = gVar.ParaBackupTime ' Date & " 19:00:00"
+    If gVar.ParaBackupInterval = 5 Then
+        Dim dateTemp As Date
+        If Me.DTPicker1.Day <> gVar.ParaBackupIntervalDays Then
+            Me.DTPicker1.Day = gVar.ParaBackupIntervalDays
+        End If
+    End If
+    Me.Option1.Item(gVar.ParaBackupInterval).Value = True
 End Sub
 
 Private Sub Option1_Click(Index As Integer)

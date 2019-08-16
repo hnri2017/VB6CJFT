@@ -768,32 +768,33 @@ End Function
 
 Public Function ShowBackupTimeInfo(ByVal BKInterval As Long, ByVal BKDate As Date) As String
     '转化备份频率与备份时间
-    Dim strShow As String, strNext As String
+    Dim strShow As String, strNext As String, strTime As String
     
+    strTime = Format(BKDate, "HH:mm:ss")
     Select Case BKInterval
         Case 0
             strShow = "无"
         Case 1
-            strShow = Format(BKDate, "每天 HH:mm:ss")
+            strShow = Format(BKDate, "每天") & strTime
         Case 2
-            strShow = Format(BKDate, "每周dddd HH:mm:ss")
+            strShow = "每周" & WeekdayName(Weekday(BKDate)) & strTime
         Case 3
-            strShow = Format(BKDate, "每月d日 HH:mm:ss")
+            strShow = Format(BKDate, "每月d日") & strTime
         Case 4
-            strShow = Format(BKDate, "每年M月d日 HH:mm:ss")
+            strShow = Format(BKDate, "每年M月d日") & strTime
         Case 5
-            strShow = Format(BKDate, "每d天 HH:mm:ss")
+            strShow = "每" & gVar.ParaBackupIntervalDays & "天" & strTime
         Case Else
             strShow = "未定义"
     End Select
-
+    ShowBackupTimeInfo = strShow
 End Function
 
 Public Function ShowBackupNextTime(ByVal BKInterval As Long, ByVal BKDate As Date) As String
     '转化备份频率与备份时间
     Dim strShow As String
-    Dim NowTime As Date, BackTime As Date, NextDay As Date
-    Dim NowWeek As Long, BKWeek As Long
+    Dim NowTime As Date, BackTime As Date, NextDay As Date, ThisYear As Date
+    Dim NowWeek As Long, BKWeek As Long, modDay As Long
     Dim NowDay As Long, BKDay As Long, NowMonth As Long, BKMonth As Long
     
     NowTime = Time
@@ -804,35 +805,50 @@ Public Function ShowBackupNextTime(ByVal BKInterval As Long, ByVal BKDate As Dat
     BKDay = Day(BKDate)
     NowMonth = Month(Date)
     BKMonth = Month(BKDate)
+    ThisYear = CDate(Format(Date, "yyyy-") & Format(BKDate, "MM-dd"))
     
     Select Case BKInterval
-        Case 0
-            strShow = "无"
-        Case 1  '每天
-            If NowTime <= BackTime Then
-                NextDay = Date
-            Else
-                NextDay = Date + 1
-            End If
-        Case 2  '每周
-            If NowWeek <= BKWeek Then
-                NextDay = Date + (BKWeek - NowWeek)
-            Else
-                NextDay = Date + (7 - NowWeek + BKWeek)
-            End If
-        Case 3  '每月
-            If NowDay <= BKDay Then
-                NextDay = Date + (BKDay - NowDay)
-            Else
-                NextDay = CDate(Format(Now, "yyyy-") & Format((Month(Date) + 1), "00-") & Format(BKDay, "00"))
-            End If
-        Case 4  '每年
-            
-        Case 5  '每N天
-            
+        Case 1 To 5
+            Select Case BKInterval
+                Case 1  '每天
+                    If NowTime <= BackTime Then
+                        NextDay = Date
+                    Else
+                        NextDay = Date + 1
+                    End If
+                Case 2  '每周
+                    If (NowWeek < BKWeek) Or (NowWeek = BKWeek And NowTime <= BackTime) Then
+                        NextDay = Date + (BKWeek - NowWeek)
+                    Else
+                        NextDay = Date + (7 - NowWeek + BKWeek)
+                    End If
+                Case 3  '每月
+                    If (NowDay < BKDay) Or (NowDay = BKDay And NowTime <= BackTime) Then
+                        NextDay = Date + (BKDay - NowDay)
+                    Else
+                        NextDay = DateAdd("m", DateDiff("m", BKDate, DateAdd("m", 1, Date)), BKDate)
+                    End If
+                Case 4  '每年
+                    If (Date < ThisYear) Or (Date = ThisYear And NowTime <= BackTime) Then
+                        NextDay = ThisYear
+                    Else
+                        NextDay = DateAdd("yyyy", 1, ThisYear)
+                    End If
+                Case 5  '每N天
+                    If Now < BKDate Then
+                        NextDay = BKDate
+                    Else
+                        modDay = (Now - BKDate) Mod gVar.ParaBackupIntervalDays
+                        If modDay = 0 And NowTime > BackTime Then
+                            modDay = modDay + gVar.ParaBackupIntervalDays
+                        End If
+                        NextDay = Date + modDay
+                    End If
+            End Select
+            strShow = Format(NextDay, "yyyy-MM-dd ") & Format(BKDate, "HH:mm:ss")
         Case Else
-            strShow = "未定义"
+            strShow = "无"
     End Select
-    strShow = Format(NextDay, "yyyy-MM-dd ") & Format(BKDate, "HH:mm:ss")
+    ShowBackupNextTime = strShow
 End Function
 

@@ -15,6 +15,15 @@ Begin VB.Form frmOption
    ScaleWidth      =   9030
    ShowInTaskbar   =   0   'False
    StartUpPosition =   1  '所有者中心
+   Begin VB.CommandButton Command1 
+      Caption         =   "UnVisible"
+      Height          =   495
+      Left            =   7440
+      TabIndex        =   2
+      Top             =   2280
+      Visible         =   0   'False
+      Width           =   1215
+   End
    Begin MSComDlg.CommonDialog CommonDialog1 
       Left            =   1680
       Top             =   2520
@@ -112,9 +121,9 @@ Private Sub msLoadParameter(Optional ByVal blnLoad As Boolean = True)
         '服务端文件备份参数
         lngRow = lngRow + 4
         .Cell(lngRow, 3).Text = gVar.ParaBackupPath '备份路径
-        
+        .Cell(lngRow + 1, 3).Text = ShowBackupTimeInfo(gVar.ParaBackupInterval, gVar.ParaBackupTime) & _
+                 ",下次备份时间:" & ShowBackupNextTime(gVar.ParaBackupInterval, gVar.ParaBackupTime)
     End With
-    
 End Sub
 
 Private Sub msSaveParameter(Optional ByVal blnSave As Boolean = True)
@@ -155,6 +164,9 @@ Private Sub msSaveParameter(Optional ByVal blnSave As Boolean = True)
         '服务端文件备份参数
         lngRow = lngRow + 4
         gVar.ParaBackupPath = mfCheckFolder(.Cell(lngRow, 3).Text) '备份路径
+        Rem gVar.ParaBackupInterval
+        Rem gVar.ParaBackupTime
+        
     End With
     
     '参数值通过公用变量保存进注册表中
@@ -186,6 +198,9 @@ Private Sub msSaveParameter(Optional ByVal blnSave As Boolean = True)
         
         '服务端文件备份参数
         Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackStore, .ParaBackupPath) '备份路径
+        Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackInterval, .ParaBackupInterval) '备份频率
+        Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackTime, .ParaBackupTime) '备份确切时间
+        Call SaveSetting(.RegAppName, .RegSectionDBServer, .RegKeyServerBackIntervalDays, .ParaBackupIntervalDays) '每N天
     End With
     
     Call msLoadParameter(True)  '窗口重新加载一次保存后的值
@@ -195,11 +210,16 @@ Private Sub msSaveParameter(Optional ByVal blnSave As Boolean = True)
 End Sub
 
 
+Private Sub Command1_Click()
+    Call msLoadParameter(True)  '加载参数值
+End Sub
+
 Private Sub Form_Load()
     Dim strFile As String
     Dim K As Long, lngSum As Long
     
     Me.Icon = LoadPicture("")
+    Me.Command1.Visible = False
     strFile = gVar.FolderNameBin & "OptionWindowServer.cel"
     If Not gfFileExist(strFile) Then
         MsgBox "以下配置文件加载失败，请解决后再重新打开窗口。" & vbCrLf & strFile, vbCritical, "异常提示"
@@ -220,7 +240,7 @@ Private Sub Form_Load()
         .DisplayFocusRect = False   '活动单元格是否显示一个虚框
         .SelectionMode = cellSelectionNone  '表格的选择模式
         
-        Call msLoadParameter(True)  '加载参数值
+        Me.Command1.Value = True  '加载参数值
         
         For K = 0 To .Rows - 1  '计算表格的实际高度
             lngSum = lngSum + .RowHeight(K) * 15    'FC此属性值单位为像素，转成VB的缇要*15.

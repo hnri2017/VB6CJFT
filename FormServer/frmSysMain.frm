@@ -994,7 +994,8 @@ Private Sub msLoadParameter(Optional ByVal blnLoad As Boolean = True)
         .TCPConnectMax = gfGetRegNumericValue(.RegAppName, .RegSectionTCP, .RegKeyParaLimitClientConnectNumber, True, 2, 1) '限制客户端连接数
         .ParaBackupPath = gfGetRegStringValue(.RegAppName, .RegSectionDBServer, .RegKeyServerBackStore, .FolderNameBackup)  '备份路径
         .ParaBackupInterval = gfGetRegNumericValue(.RegAppName, .RegSectionDBServer, .RegKeyServerBackInterval, True, 0, 0, 5) '备份频率
-        .ParaBackupTime = gfGetRegStringValue(.RegAppName, .RegSectionDBServer, .RegKeyServerBackTime, "1989-12-30 19:00:00", True) '备份时间
+        .ParaBackupTime = gfGetRegStringValue(.RegAppName, .RegSectionDBServer, .RegKeyServerBackTime, Format(Date, "yyyy-MM-dd 19:00:00"), True) '备份时间
+        .ParaBackupIntervalDays = gfGetRegNumericValue(.RegAppName, .RegSectionDBServer, .RegKeyServerBackIntervalDays, True, 1, 1, 365)
     End With
 End Sub
 

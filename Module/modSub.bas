@@ -238,6 +238,7 @@ Public Sub Main(Optional ByVal blnLoad As Boolean = True)
         .RegKeyServerBackStore = "BackupStore"
         .RegKeyServerBackInterval = "BackupInterval"
         .RegKeyServerBackTime = "BackupTime"
+        .RegKeyServerBackIntervalDays = "BackIntervalDays"
         
         .RegSectionUser = "UserInfo"
         .RegKeyUserLast = "LastLoginUser"
