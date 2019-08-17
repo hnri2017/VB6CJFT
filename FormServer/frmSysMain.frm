@@ -15,6 +15,10 @@ Begin VB.Form frmSysMain
    ScaleHeight     =   5040
    ScaleWidth      =   9315
    StartUpPosition =   2  '屏幕中心
+   Begin VB.Timer Timer2 
+      Left            =   4200
+      Top             =   4080
+   End
    Begin MSWinsockLib.Winsock Winsock1 
       Index           =   0
       Left            =   720
@@ -1211,7 +1215,8 @@ Private Sub Form_Load()
         End
     End If
     
-    Timer1.Item(0).Interval = 1000  '计时器循环时间
+    Me.Timer1.Item(0).Interval = 1000  '计时器循环时间
+    Me.Timer2.Interval = 1000
     Call Main   '初始化全局公用变量
     Set gWind = Me  '指定主窗体给全局引用对象
     XtremeCommandBars.CommandBarsGlobalSettings.App = App '一个默认设置
@@ -1359,16 +1364,14 @@ End Sub
 
 Private Sub Timer1_Timer(Index As Integer)
     'Index=0的计时器间隔1秒。Timer1的Index值 与 Winsock1的Index对应
-    
     Dim sckClose As MSWinsockLib.Winsock, sckCheck As MSWinsockLib.Winsock, tmrUld As VB.Timer
     Dim timeOut As Long, lngRows As Long
-'    Static CheckConnectTime As Long
-'    Static ConfirmTime() As Long
-'    Static ConfirmOK() As Boolean
-'    Static CountTime() As Long
         
     On Error Resume Next
     If Index = 0 Then
+        '''index=0计时器为服务端自身用
+        
+        '服务端联网控件的状态切换
         If Me.Winsock1.Item(Index).State = 2 Then  '侦听正常状态
             Call msSetServerState(vbGreen)
         Else    '其它状态
@@ -1401,7 +1404,6 @@ Private Sub Timer1_Timer(Index As Integer)
             Next
             CheckConnectTime = 0
         End If
-        '''index=0计时器为服务端自身用
         
         '刷新每个连接的时长
         With Me.Grid1
@@ -1416,13 +1418,11 @@ Private Sub Timer1_Timer(Index As Integer)
                 Next
             End If
         End With
+        
+        '''index=0计时器为服务端自身用
     Else
         '''index>0为各个客户端连接用
-        
         timeOut = gVar.ParaLimitClientConnectTime * 60  '计算允许连接时长的总秒数
-'''        ReDim Preserve ConfirmTime(Me.Timer1.UBound)    '需要每次都这样？
-'''        ReDim Preserve ConfirmOK(Me.Timer1.UBound)
-'''        ReDim Preserve CountTime(Me.Timer1.UBound)
         
         If Not ConfirmOK(Index) Then ConfirmTime(Index) = ConfirmTime(Index) + 1
         If gVar.ParaBlnLimitClientConnect Then CountTime(Index) = CountTime(Index) + 1
@@ -1478,6 +1478,24 @@ Private Sub Timer1_Timer(Index As Integer)
     
     If Err.Number > 0 Then
         Call msRestart
+    End If
+End Sub
+
+Private Sub Timer2_Timer()
+    '定时备份
+    Dim nowTime As Date, BackupTime As Date
+    
+    On Error Resume Next
+    nowTime = Now
+    If gVar.ParaBackupInterval > 0 And gVar.ParaBackupInterval <= 5 Then    '开启了备份功能
+        BackupTime = CDate(ShowBackupNextTime(gVar.ParaBackupInterval, gVar.ParaBackupTime)) '获取下次备份时间
+        If Format(nowTime, "yyyy-MM-dd HH:mm") = Format(BackupTime, "yyyy-MM-dd HH:mm") Then '时间上除了秒数都相同
+            If Abs(Val(Format(BackupTime - nowTime, "s"))) < 2 Then   '取得两个时间相减后的秒数。原理上BackTime 总是大于 nowTime
+                Me.Timer2.Enabled = False
+                Debug.Print "备份一次：" & BackupTime
+                Me.Timer2.Enabled = True
+            End If
+        End If
     End If
 End Sub
 

@@ -94,7 +94,7 @@ Begin VB.Form frmInterval
          _ExtentY        =   714
          _Version        =   393216
          CustomFormat    =   "HH:mm:ss"
-         Format          =   102891522
+         Format          =   101777410
          CurrentDate     =   43680.8125
       End
    End
@@ -134,6 +134,7 @@ Private Sub Command1_Click()
                     Exit For
                 End If
             Next
+            Set frmOP = Nothing
             Exit For
         End If
     Next
@@ -142,11 +143,18 @@ End Sub
 Private Sub Form_Load()
     Me.DTPicker1.Format = dtpCustom
     Me.DTPicker1.UpDown = True
-    Me.DTPicker1.Value = gVar.ParaBackupTime ' Date & " 19:00:00"
+    Me.DTPicker1.Value = gVar.ParaBackupTime  ' Date & " 19:00:00"
     If gVar.ParaBackupInterval = 5 Then
-        Dim dateTemp As Date
         If Me.DTPicker1.Day <> gVar.ParaBackupIntervalDays Then
-            Me.DTPicker1.Day = gVar.ParaBackupIntervalDays
+            Dim ThisDate As Date, strDate As String
+            ThisDate = Now
+            If gVar.ParaBackupIntervalDays > 31 Then gVar.ParaBackupIntervalDays = gVar.ParaBackupIntervalDays Mod 31
+            strDate = Format(ThisDate, "yyyy-MM-") & gVar.ParaBackupIntervalDays & Format(gVar.ParaBackupTime, " HH:mm:ss")
+            Do While Not IsDate(strDate)
+                ThisDate = DateAdd("m", 1, ThisDate)
+                strDate = Format(ThisDate, "yyyy-") & gVar.ParaBackupIntervalDays & Format(gVar.ParaBackupTime, " HH:mm:ss")
+            Loop
+            Me.DTPicker1.Value = CDate(strDate)
         End If
     End If
     Me.Option1.Item(gVar.ParaBackupInterval).Value = True

@@ -122,7 +122,7 @@ Private Sub msLoadParameter(Optional ByVal blnLoad As Boolean = True)
         lngRow = lngRow + 4
         .Cell(lngRow, 3).Text = gVar.ParaBackupPath '备份路径
         .Cell(lngRow + 1, 3).Text = ShowBackupTimeInfo(gVar.ParaBackupInterval, gVar.ParaBackupTime) & _
-                 ",下次备份时间:" & ShowBackupNextTime(gVar.ParaBackupInterval, gVar.ParaBackupTime)
+                 "，下次备份时间:" & ShowBackupNextTime(gVar.ParaBackupInterval, gVar.ParaBackupTime)
     End With
 End Sub
 
