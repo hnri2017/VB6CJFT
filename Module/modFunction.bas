@@ -2,6 +2,66 @@ Attribute VB_Name = "modFunction"
 Option Explicit
 
 
+
+'---------------------------------------------------------------------------------------
+'MsgBox自动退出相关API与变量
+Private Declare Function SetWindowTextA Lib "user32" (ByVal hwnd As Long, ByVal lpString As String) As Long
+Private Declare Function timeSetEvent Lib "winmm.dll" (ByVal uDelay As Long, ByVal uResolution As Long, ByVal lpFunction As Long, ByVal dwUser As Long, ByVal uFlags As Long) As Long
+Private Declare Function timeKillEvent Lib "winmm.dll" (ByVal uID As Long) As Long
+Private Const TIME_PERIODIC As Long = 1 'program for continuous periodic event
+Private Const TIME_ONESHOT As Long = 0  'program timer for single event
+Private Const DelayTime As Long = 500   'API函数timeSetEvent的计时器间隔时间毫秒
+
+Rem Private Declare Function SendMessage Lib "user32.dll" Alias "SendMessageA" (ByVal hwnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByRef lParam As Any) As Long
+Private Const WM_GETTEXT As Long = &HD&
+Private Const WM_SETTEXT As Long = &HC&
+Private Const WM_CLOSE As Long = &H10&
+
+Private Declare Function GetClassName Lib "user32.dll" Alias "GetClassNameA" (ByVal hwnd As Long, ByVal lpClassName As String, ByVal nMaxCount As Long) As Long
+Private Declare Function EnumChildWindows Lib "user32.dll" (ByVal hWndParent As Long, ByVal lpEnumFunc As Long, ByVal lParam As Long) As Long
+Private Declare Function EnumWindows Lib "user32" (ByVal lpEnumFunc As Long, ByVal lParam As Long) As Boolean
+Private Declare Function GetWindowText Lib "user32" Alias "GetWindowTextA" (ByVal hwnd As Long, ByVal lpString As String, ByVal cch As Long) As Long
+Private Declare Function GetWindowTextLength Lib "user32" Alias "GetWindowTextLengthA" (ByVal hwnd As Long) As Long
+
+Private TimeID As Long      '返回多媒体记时器对象标识
+Private Dlghwnd As Long     '对话框句柄
+Private Dlgtexthwnd As Long '对话框提示文本句柄
+Private MediaCount As Double    '倒计时的累加量
+Private MsgBoxCloseTime As Long     '设置对话框关闭时间
+Private MsgBoxPromptText As String  '设置对话框提示文本
+Private MsgBoxTitleText As String   '设置对话框窗口标题文本
+
+Private Declare Function MessageBoxTimeout Lib "user32" Alias "MessageBoxTimeoutA" (ByVal hwnd As Long, _
+    ByVal lpText As String, ByVal lpCaption As String, ByVal wType As Long, _
+    ByVal wlange As Long, ByVal dwTimeout As Long) As Long
+'---------------------------------------------------------------------------------------
+
+'获取一个已中断进程的退出代码.非零表示成功，零表示失败
+Private Declare Function GetExitCodeProcess Lib "kernel32" (ByVal hProcess As Long, lpExitCode As Long) As Long
+'打开一个已存在的进程对象，并返回进程的句柄
+Private Declare Function OpenProcess Lib "kernel32" (ByVal dwDesiredAccess As Long, ByVal bInheritHandle As Long, ByVal dwProcessId As Long) As Long
+'关闭一个内核对象。其中包括文件、文件映射、进程、线程、安全和同步对象等
+Private Declare Function CloseHandle Lib "kernel32" (ByVal hObject As Long) As Long
+
+Private Const CREATE_NEW_CONSOLE = &H10
+Private Const Process_query_infomation = &H400  '获取进程的令牌、退出码和优先级等信息
+Private Const Still_Active = &H103
+
+'得到当前平台和操作系统有关的版本信息.非零表示成功，零表示失败
+Private Declare Function GetVersionEx Lib "kernel32" Alias "GetVersionExA" (lpVersionInformation As OSVERSIONINFO) As Long
+Private Type OSVERSIONINFO
+    dwOSVersionInfoSize As Long '初始化为结构的大小
+    dwMajorVersion As Long      '系统主版本号
+    dwMinorVersion As Long      '系统次版本号
+    dwBuildNumber As Long       '系统构建号
+    dwPlatformId As Long        '系统支持的平台
+    szCSDVersion As String * 128    '
+End Type
+
+'得到当前window系统目的完整路径名
+Private Declare Function GetWindowsDirectory Lib "kernel32" Alias "GetWindowsDirectoryA" (ByVal lpBuffer As String, ByVal nSize As Long) As Long
+'---------------------------------------------------------------------------------------
+
 '浏览目录所使用的常量、API、Type、变量等。功能：定位到当前文件夹，而且选定它
 Private Const BIF_RETURNONLYFSDIRS = 1  '仅仅返回文件系统的目录
 Private Const BIF_DONTGOBELOWDOMAIN = 2 '在树形视窗中，不包含域名底下的网络目录结构
@@ -35,6 +95,17 @@ Private Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hw
 Private Declare Function SHBrowseForFolder Lib "shell32" (lpbi As BrowseInfo) As Long
 Private Declare Function SHGetPathFromIDList Lib "shell32" (ByVal pidList As Long, ByVal lpBuffer As String) As Long
 Private Declare Function lstrcat Lib "kernel32" Alias "lstrcatA" (ByVal lpString1 As String, ByVal lpString2 As String) As Long
+'-----------------------------------------------------------------------------------
+'---------------------------------------------------------------------------
+
+Private Const mconStrKey As String = "ftkey"        '公共密钥
+Private Const mconStrBKbak As String = ".bak"       '备份文件的扩展名
+Private Const mconStrBKrst As String = ".rst"       '备份配置文件扩展名
+Private Const mconStrRar As String = ".rar"         '压缩文件扩展名
+Private Const mconLngSizeCompress As Long = 100     '压缩文件分卷大小，单位MB
+
+'---------------------------------------------------------------------------
+
 
 Public Function BrowseForFolder(ByRef Owner As Form, _
                                 Optional ByVal StartDir As String = "", _
@@ -91,6 +162,583 @@ End Function
 Private Function GetAddressofFunction(ByVal AddOf As Long) As Long
     GetAddressofFunction = AddOf
 End Function
+
+'--------------------------------------------------------------------------
+
+Public Function DriveFreeSpaceMB(ByVal strPath As String) As Long
+    '返回磁盘剩余可用空间,单位MB
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveFreeSpaceMB = objDrv.FreeSpace / 1024 / 1024
+    End If
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+        DriveFreeSpaceMB = -1
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function DriveLetter(ByVal strPath As String) As String
+    '返回磁盘的符号字母
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveLetter = objDrv.DriveLetter
+    End If
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function DriveTotalSizeMB(ByVal strPath As String) As Long
+    '返回磁盘总空间大小,单位MB
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveTotalSizeMB = objDrv.TotalSize / 1024 / 1024
+    End If
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+        DriveTotalSizeMB = -1
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function DriveVolumeName(ByVal strPath As String) As String
+    '返回磁盘卷标名
+    Dim strDir As String
+    Dim objFSO As Object, objDrv As Object
+    
+    On Error Resume Next
+    
+    strDir = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem + vbVolume)
+    If Len(strDir) > 0 Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objDrv = objFSO.GetDrive(objFSO.GetDriveName(strPath))
+        DriveVolumeName = objDrv.VolumeName
+    End If
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+    Set objDrv = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Sub EnabledControl(ByRef frmEN As Form, Optional ByVal blnEN As Boolean = True)
+    Dim ctlEn As VB.Control
+    On Error Resume Next
+    For Each ctlEn In frmEN.Controls
+        ctlEn.Enabled = blnEN
+    Next
+    Screen.MousePointer = IIf(blnEN, 0, 13)
+End Sub
+'--------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+
+Public Function FileBackupCP(ByVal strSrcFolder As String, ByVal strDesFolder As String) As Boolean
+    '文件备份,先压缩再打包
+    Dim lngSizeSrc As Long, lngSizeDes As Long
+    Dim strPathTemp As String, strSrc As String, strDes As String, strMsg As String
+    
+    If Not FolderExist(strSrcFolder) Then
+        strMsg = "要备份的目录不存在"
+        GoTo LineEnd
+    End If
+    If Not FolderPathBuild(strDesFolder) Then
+        strMsg = "生成的备份文件的保存位置不存在"
+        GoTo LineEnd
+    End If
+    
+    lngSizeSrc = FolderSizeMB(strSrcFolder)
+    lngSizeDes = DriveFreeSpaceMB(strDesFolder)
+    If lngSizeSrc = -1 Or lngSizeDes = -1 Then
+        strMsg = "文件夹大小获取异常"
+        GoTo LineEnd
+    End If
+    If lngSizeDes < lngSizeSrc * 2 Then
+        strMsg = "备份文件保存位置的空间不够"
+        GoTo LineEnd
+    End If
+    
+    strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")
+    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\")
+    strPathTemp = strDes & "Temp" & Format(Now, "yyyyMMddHHmmss")
+    If FolderExist(strPathTemp, True) Then
+        Call FolderDelete(strPathTemp)    '删除也即清空临时文件夹
+    End If
+    If Not FolderPathBuild(strPathTemp) Then
+        strMsg = "临时文件夹异常"
+        GoTo LineEnd
+    End If
+    
+    If Not FileCompress(strSrc, strPathTemp, , True) Then
+        strMsg = "文件压缩异常"
+        GoTo LineEnd
+    End If
+    
+    If FilePackage(strPathTemp, strDes) Then
+        Call FolderDelete(strPathTemp)
+    Else
+        strMsg = "文件打包异常"
+        GoTo LineEnd
+    End If
+    
+    FileBackupCP = True
+LineEnd:
+    If Len(strMsg) > 0 Then
+        Call gsAlarmAndLog(strMsg, False)
+        Call FolderDelete(strPathTemp)
+    End If
+End Function
+
+Public Function FileCompress(ByVal strSrcFolder As String, ByVal strDesFolder As String, _
+            Optional ByVal MSize As Long = mconLngSizeCompress, _
+            Optional ByVal HideBack As Boolean = True) As Boolean
+    '压缩文件
+    Dim strWinRAR As String, strSrc As String, strDes As String
+    Dim strSize As String, strHide As String, strCommand As String, strMsg As String
+    
+    strWinRAR = IIf(Right(App.Path, 1) = "\", App.Path, App.Path & "\") & "WinRAR.exe"
+    If Not FileExist(strWinRAR) Then  '压缩程序是否存在
+        strMsg = "WinRAR压缩应用程序不存在"
+        GoTo LineEnd
+    End If
+    If Not FolderExist(strSrcFolder) Then '源文件与目的文件是否存在
+        strMsg = "被压缩的文件目录不存在"
+        GoTo LineEnd
+    End If
+    If Not FolderExist(strDesFolder) Then
+        strMsg = "保存压缩文件的目录不存在"
+        GoTo LineEnd
+    End If
+    If FolderNotNull(strSrcFolder) = 0 Then '源目录是否为空
+        strMsg = "被压缩的文件目录无可压缩文件"
+        GoTo LineEnd
+    End If
+    
+    strSrc = IIf(Right(strSrcFolder, 1) = "\", strSrcFolder, strSrcFolder & "\")    '样式: D:\temp\，'\'有重要意义
+    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\") & "FC_" & Format(Now, "yyyy_MM_DD_HH_mm_ss") & mconStrRar
+    If MSize < 0 Then MSize = mconLngSizeCompress
+    If MSize <> 0 Then strSize = "-v" & MSize & "M" '指定大小的分卷压缩
+    If HideBack Then strHide = " -ibck"            '压缩进度窗口最小化到任务栏区
+    '生成压缩shell命令。'-k锁定文件，-v50M 以50M分卷，-r 连同子文件夹，-ep1 路径中不包含顶层文件夹
+    strCommand = strWinRAR & " a " & strSize & strHide & " -y -s -k -r -ep1 " & strDes & " " & strSrc
+    If ShellWait(strCommand) Then
+        FileCompress = True '但是如果压缩过程被中断取消也是返回True的
+    End If
+LineEnd:
+    If Len(strMsg) > 0 Then
+        Call gsAlarmAndLog(strMsg, False)
+    End If
+End Function
+
+Public Function FileExist(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
+    '判断 [文件] 是否存在
+    Dim strDir As String, strMid As String
+    
+    On Error Resume Next
+    strDir = Dir(strPath, vbHidden) '若存在则返回不带路径的文件名
+    If Len(strDir) > 0 Then
+        strMid = Mid(strPath, InStrRev(strPath, "\") + 1)   '获得不包含文件夹路径的文件名
+        If LCase(strMid) = LCase(strDir) Then   '相等则表示文件存在
+            If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
+                If GetAttr(strPath) <> vbNormal Then
+                    SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
+                End If
+            End If
+            FileExist = True
+        End If
+    End If
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+End Function
+
+Public Function FileExtract(ByVal strSrcFile As String, ByVal strDesFolder As String, _
+                    Optional ByVal HideBack As Boolean = True) As Boolean
+    '解压文件
+    
+    Dim strWinRAR As String, strSrc As String, strDes As String
+    Dim strHide As String, strCommand As String, strMsg As String
+    
+    strWinRAR = IIf(Right(App.Path, 1) = "\", App.Path, App.Path & "\") & "WinRAR.exe"
+    If Not FileExist(strWinRAR) Then  '压缩程序是否存在
+        strMsg = "WinRAR压缩应用程序不存在"
+        GoTo LineEnd
+    End If
+    If Not FileExist(strSrcFile) Then '源文件与目的文件是否存在
+        strMsg = "被解压的文件不存在"
+        GoTo LineEnd
+    End If
+    If Not FolderExist(strDesFolder) Then
+        strMsg = "解压后的文件存放目录不存在"
+        GoTo LineEnd
+    End If
+        
+    strSrc = strSrcFile
+    strDes = IIf(Right(strDesFolder, 1) = "\", strDesFolder, strDesFolder & "\")
+    
+    '生成压缩shell命令
+    If HideBack Then strHide = " -ibck "
+    strCommand = strWinRAR & " x -y " & strHide & strSrc & " " & strDes '-y对所有询问自动回应是
+    If ShellWait(strCommand) Then
+        FileExtract = True
+    End If
+LineEnd:
+    If Len(strMsg) > 0 Then
+        Call gsAlarmAndLog(strMsg, False)
+    End If
+End Function
+
+Public Function FilePackage(ByVal strFolderSrc As String, ByVal strFolderDes As String, _
+    Optional ByVal blnEncrypt As Boolean = True, _
+    Optional ByVal strKey As String = mconStrKey) As Boolean
+    '将散文件打包成一个文件
+    Dim strFS As String, strFD As String
+    Dim strFBK As String, strFind As String, strDir As String, strGet As String, strPre As String
+    Dim bytFile() As Byte, intSrc As Integer, intDes As Integer, lngSize As Long, bytEncrypt() As Byte
+    Dim strFR As String, intFR As Integer, strSize As String, strMsg As String
+    
+    If Not (FolderExist(strFolderSrc) And FolderExist(strFolderDes)) Then
+        strMsg = "源路径或目的路径不存在"
+        GoTo LineEnd
+    End If
+    If LCase(strFolderSrc) = LCase(strFolderDes) Then
+        strMsg = "源路径与目的路径不能相同"
+        GoTo LineEnd
+    End If
+    
+    On Error GoTo LineErr
+    strFD = IIf(Right(strFolderDes, 1) = "\", strFolderDes, strFolderDes & "\")
+    strFS = IIf(Right(strFolderSrc, 1) = "\", strFolderSrc, strFolderSrc & "\")
+    strPre = "fbk" & Format(Now, "yyyy-MM-dd-HH-mm-ss")
+    strFBK = strFD & strPre & mconStrBKbak
+    strFind = strFS & "*.*"
+    
+    strFR = strFD & strPre & mconStrBKrst
+    intFR = FreeFile
+    Open strFR For Output As #intFR
+    
+    intDes = FreeFile
+    Open strFBK For Binary As #intDes
+    strDir = Dir(strFind)
+    Do While Not Len(strDir) = 0
+        DoEvents
+        intSrc = FreeFile
+        strGet = strFS & strDir
+        lngSize = FileLen(strGet)
+        strSize = CStr(lngSize)
+        ReDim bytFile(lngSize - 1)
+        Open strGet For Binary As #intSrc
+        Get #intSrc, , bytFile '不加密时单个文件大约大于380MB时内存溢出报错
+        If blnEncrypt Then
+            Rem ReDim bytEncrypt(lngSize - 1)
+            bytEncrypt = EncryptByte(bytFile, strKey)   '加密时单个文件大约大于185MB时内存溢出报错
+            bytFile = bytEncrypt    '加密前后Byte数组的维数与大小相等
+            strDir = EncryptString(strDir, strKey)
+            strSize = EncryptString(strSize, strKey)
+        End If
+        Put #intDes, , bytFile
+        Close intSrc
+        Print #intFR, strDir & vbTab & strSize
+        strDir = Dir
+    Loop
+    Close intSrc
+    Close intDes
+    Close intFR
+    FilePackage = True
+    
+LineErr:
+    Close   '关闭所有打开的文件
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+        If FileExist(strFBK) Then Kill strFBK '删除文件
+        If FileExist(strFR) Then Kill strFR
+    End If
+LineEnd:
+    If Len(strMsg) > 0 Then
+        Call gsAlarmAndLog(strMsg, False)
+    End If
+End Function
+
+Public Function FileRestoreCP(ByVal strFileSrc As String, ByVal strFolderDes As String) As Boolean
+    '还原文件
+    Dim lngSizeSrc As Long, lngSizeDes As Long
+    Dim strDes As String, strPathTemp As String, strPathFile As String, strMsg As String
+    
+    On Error Resume Next
+    If Not FileExist(strFileSrc) Then
+        strMsg = "还原的源文件不存在"
+        GoTo LineEnd
+    End If
+    If Not FolderPathBuild(strFolderDes) Then
+        strMsg = "文件还原位置不存在"
+        GoTo LineEnd
+    End If
+    
+    lngSizeSrc = FileLen(strFileSrc) / 1024 / 1024
+    lngSizeDes = DriveFreeSpaceMB(strFolderDes)
+    If lngSizeDes < lngSizeSrc * 2 Then
+        strMsg = "还原位置空间不够"
+        GoTo LineEnd
+    End If
+    
+    strDes = IIf(Right(strFolderDes, 1) = "\", strFolderDes, strFolderDes & "\")
+    strPathTemp = strDes & "Temp" & Format(Now, "yyyyMMddHHmmss")
+    If FolderExist(strPathTemp) Then
+        Call FolderDelete(strPathTemp)
+    End If
+    If Not FolderPathBuild(strPathTemp) Then
+        strMsg = "临时文件夹创建异常"
+        GoTo LineEnd
+    End If
+    
+    If Not FileUnpack(strFileSrc, strPathTemp) Then
+        strMsg = "打包文件还原异常"
+        GoTo LineEnd
+    End If
+    
+    strPathFile = Dir(strPathTemp & "\*" & mconStrRar)
+    If InStr(strPathFile, mconStrRar) = 0 Then
+        strMsg = "解压文件中有异常"
+        GoTo LineEnd
+    Else
+        strPathFile = strPathTemp & "\" & strPathFile
+    End If
+
+    If FileExtract(strPathFile, strDes) Then
+        FileRestoreCP = True
+        Call FolderDelete(strPathTemp)
+    Else
+        strMsg = "文件解压异常"
+        GoTo LineEnd
+    End If
+LineEnd:
+    If Len(strMsg) > 0 Then
+        Call gsAlarmAndLog(strMsg, False)
+        Call FolderDelete(strPathTemp)
+    End If
+End Function
+
+Public Function FileUnpack(ByVal strFileSrc As String, ByVal strFolderDes As String, _
+    Optional ByVal blnDecrypt As Boolean = True, _
+    Optional ByVal strKey As String = mconStrKey) As Boolean
+    '将打好包的源文件还原成零散文件
+    Dim strFS As String, strFD As String, strMsg As String
+    Dim strFI As String, strLine As String, strArr() As String, strFBK As String, bytDecrypt() As Byte
+    Dim bytFile() As Byte, intFI As Integer, intSrc As Integer, intDes As Integer, lngSize As Long
+
+    strFI = Left(strFileSrc, InStrRev(strFileSrc, ".") - 1) & mconStrBKrst '恢复文件的配置文件
+    If Not (FolderExist(strFolderDes) And FileExist(strFileSrc) And FileExist(strFI)) Then
+        strMsg = "还原的源文件或还原位置不存在"
+        GoTo LineEnd
+    End If
+    If LCase(Mid(strFileSrc, InStrRev(strFileSrc, "."))) <> LCase(mconStrBKbak) Then
+        strMsg = "还原的源文件格式不对"
+        GoTo LineEnd
+    End If
+    
+    On Error GoTo LineErr
+    strFS = Left(strFileSrc, InStrRev(strFileSrc, "\"))
+    strFD = IIf(Right(strFolderDes, 1) = "\", strFolderDes, strFolderDes & "\")
+    
+    intFI = FreeFile
+    Open strFI For Input As #intFI
+    intSrc = FreeFile
+    Open strFileSrc For Binary As #intSrc
+    While Not EOF(intFI)
+        Line Input #intFI, strLine
+        strArr = Split(strLine, vbTab)
+        If UBound(strArr) <> 1 Then GoTo LineErr
+        If blnDecrypt Then
+            strArr(0) = DecryptString(strArr(0), strKey)
+            strArr(1) = DecryptString(strArr(1), strKey)
+        End If
+        If Not IsNumeric(strArr(1)) Then GoTo LineErr
+        strFBK = strFD & strArr(0)
+        ReDim bytFile(strArr(1) - 1)
+        Get #intSrc, , bytFile
+        If blnDecrypt Then
+            bytDecrypt = DecryptByte(bytFile, strKey)
+            bytFile = bytDecrypt
+        End If
+        intDes = FreeFile
+        Open strFBK For Binary As #intDes
+        Put #intDes, , bytFile
+        Close intDes
+    Wend
+    Close intFI
+    Close intSrc
+    Close intDes
+    FileUnpack = True
+    
+LineErr:
+    Close   '关闭所有打开的文件
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+LineEnd:
+    If Len(strMsg) > 0 Then
+        Call gsAlarmAndLog(strMsg, False)
+    End If
+End Function
+
+Public Function FolderDelete(ByVal strFolderPath As String) As Boolean
+    '删除指定文件夹
+    Dim objFSO As Object, objFod As Object
+    
+    On Error Resume Next
+    
+    If FolderExist(strFolderPath) Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objFod = objFSO.GetFolder(strFolderPath)
+        objFod.Delete True
+        DoEvents
+        FolderDelete = True
+    End If
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+    Set objFod = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function FolderExist(ByVal strPath As String, Optional ByVal blnSetNormal As Boolean = False) As Boolean
+    '判断 [文件夹] 是否存在
+    Dim strFod As String, strGet As String
+    
+    On Error Resume Next
+    If Len(Trim(strPath)) > 0 Then  '以防传入空字符串路径
+        If Right(strPath, 1) = "\" Then
+            If InStr(strPath, "\") <> InStrRev(strPath, "\") Then   '以防传入的是根目录
+                strPath = Left(strPath, Len(strPath) - 1) '非根目录则踢除末尾多余的"\"
+            End If
+        End If
+    End If
+    strFod = Dir(strPath, vbDirectory + vbHidden)
+    If Len(strFod) > 0 Then '说明有返回值
+        If strFod <> "." And strFod <> ".." Then    '若是空路径则返回"."
+            If InStr(strPath, "\") = InStrRev(strPath, "\") Then    '以防传入的是根目录如"D:\"
+                strGet = strPath
+            Else
+                strGet = Left(strPath, Len(strPath) - Len(strFod)) & strFod '正常情况下strFod值+上层目录=strPath
+            End If
+            If GetAttr(strGet) And vbDirectory = vbDirectory Then   '如果是文件夹或者存在的根目录
+                If blnSetNormal Then    '若要强制改变文件属性，如删除只读取或隐藏属性
+                    If GetAttr(strPath) <> vbNormal Then
+                        SetAttr strPath, vbNormal   '去除多余的属性，强制改成常规属性文件
+                    End If
+                End If
+                FolderExist = True
+            End If
+        End If
+    End If
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+End Function
+
+Public Function FolderNotNull(ByVal strFolderPath As String) As Boolean
+    '检查文件夹是否为空目录
+    Dim objFSO As Object, objFolder As Object, objFiles As Object
+    
+    On Error Resume Next
+    
+    If FolderExist(strFolderPath) Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objFolder = objFSO.GetFolder(strFolderPath)
+        Set objFiles = objFolder.Files
+        If objFiles.Count > 0 Then  '文件个数
+            FolderNotNull = True
+        ElseIf objFolder.SubFolders.Count > 0 Then  '文件夹个数
+            FolderNotNull = True
+        End If
+    End If
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+    Set objFiles = Nothing
+    Set objFolder = Nothing
+    Set objFSO = Nothing
+End Function
+
+Public Function FolderPathBuild(ByVal strFolderPath As String) As Boolean
+    '文件夹路径不存在时新建
+    Dim strFod As String, strParentFolder As String, strNew As String
+    
+    On Error GoTo LineErr
+    
+    If FolderExist(strFolderPath) Then
+        FolderPathBuild = True
+    Else
+        strFod = IIf(Right(strFolderPath, 1) = "\", Left(strFolderPath, Len(strFolderPath) - 1), strFolderPath)
+        strParentFolder = Left(strFod, InStrRev(strFod, "\") - 1)   '获取上一级文件夹路径
+        If InStr(strParentFolder, "\") = 0 Then
+            strParentFolder = strParentFolder & "\" '防止根目录如C:在函数FolderExist中返回False
+        End If
+        If FolderPathBuild(strParentFolder) Then    '递归调用
+            MkDir strFod
+            FolderPathBuild = True
+        End If
+    End If
+    
+LineErr:
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    End If
+End Function
+
+Public Function FolderSizeMB(ByVal strFolderPath As String) As Long
+    '返回文件夹的大小，单位MB
+    Dim objFSO As Object, objFod As Object
+    
+    On Error Resume Next
+    
+    If FolderExist(strFolderPath) Then
+        Set objFSO = CreateObject("Scripting.FileSystemObject")
+        Set objFod = objFSO.GetFolder(strFolderPath)
+        FolderSizeMB = objFod.Size / 1024 / 1024
+    End If
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+        FolderSizeMB = -1
+    End If
+    Set objFod = Nothing
+    Set objFSO = Nothing
+End Function
+
+
 
 Public Function gfAsciiAdd(ByVal strIn As String) As String
     '返回传入字符的Ascii码值加N后 对应的字符。
@@ -202,7 +850,7 @@ Public Function gfBackConnection(ByVal strCon As String, _
         Optional ByVal CursorLocation As CursorLocationEnum = adUseClient) As ADODB.Connection
     '返回数据库连接
        
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     Set gfBackConnection = New ADODB.Connection
     gfBackConnection.CursorLocation = CursorLocation
@@ -212,7 +860,7 @@ Public Function gfBackConnection(ByVal strCon As String, _
     
     Exit Function
     
-LineERR:
+LineErr:
     Call gsAlarmAndLog("数据库连接异常")
     
 End Function
@@ -226,7 +874,7 @@ Public Function gfBackRecordset(ByVal cnSQL As String, _
     
     Dim cnBack As ADODB.Connection
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
 
     Set gfBackRecordset = New ADODB.Recordset
     Set cnBack = gfBackConnection(gVar.ConString, CursorLocation)
@@ -236,7 +884,7 @@ Public Function gfBackRecordset(ByVal cnSQL As String, _
     
     Exit Function
 
-LineERR:
+LineErr:
     Call gsAlarmAndLog("返回记录集异常")
 
 End Function
@@ -415,7 +1063,7 @@ End Function
 Public Function gfFileCopy(ByVal strOld As String, ByVal strNew As String, Optional ByVal blnDelOld As Boolean = False) As Boolean
     '复制文件
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     FileCopy strOld, strNew
     gfFileCopy = True
@@ -423,7 +1071,7 @@ Public Function gfFileCopy(ByVal strOld As String, ByVal strNew As String, Optio
         Kill strOld
     End If
     Exit Function
-LineERR:
+LineErr:
     Call gsAlarmAndLog("文件复制异常")
 End Function
 
@@ -433,7 +1081,7 @@ Public Function gfFileExist(ByVal strPath As String) As Boolean
 
     Dim strBack As String
         
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     If Len(strPath) > 0 Then    '空字符串不算
         strBack = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem)
@@ -442,7 +1090,7 @@ Public Function gfFileExist(ByVal strPath As String) As Boolean
   
     Exit Function
     
-LineERR:
+LineErr:
     Call gsAlarmAndLog("判断文件异常")
     
 End Function
@@ -454,7 +1102,7 @@ Public Function gfFileExistEx(ByVal strPath As String) As gtypeValueAndErr
     
     Dim strBack As String
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     If Len(strPath) > 0 Then    '空字符串不算
         strBack = Dir(strPath, vbDirectory + vbHidden + vbReadOnly + vbSystem)
@@ -467,7 +1115,7 @@ Public Function gfFileExistEx(ByVal strPath As String) As gtypeValueAndErr
     
     Exit Function
     
-LineERR:
+LineErr:
     gfFileExistEx.ErrNum = Err.Number   '异常了，也当作不存在了
     Call gsAlarmAndLog("文件判断返回异常")
     
@@ -490,7 +1138,7 @@ Public Function gfFileOpen(ByVal strFilePath As String) As gtypeValueAndErr
     Dim lngRet As Long
     Dim strDir As String
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     If gfFileExist(strFilePath) Then
         
@@ -511,7 +1159,7 @@ Public Function gfFileOpen(ByVal strFilePath As String) As gtypeValueAndErr
     
     Exit Function
     
-LineERR:
+LineErr:
     gfFileOpen.ErrNum = Err.Number
     Call gsAlarmAndLog("文件打开异常")
     
@@ -520,14 +1168,14 @@ End Function
 Public Function gfFileRename(ByVal strOld As String, ByVal strNew As String) As Boolean
     '重命名文件或文件名
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     Close
     Name strOld As strNew
     Close
     gfFileRename = True
     Exit Function
-LineERR:
+LineErr:
     Close
     Call gsAlarmAndLog("文件/文件夹重命名异常", False)
 End Function
@@ -536,7 +1184,7 @@ End Function
 Public Function gfFileReNameEx(ByVal strOld As String, ByVal strNew As String) As Boolean
     '重命名文件或文件名。先删除存在的新文件名的文件
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     If gfFileExist(strNew) Then
         Kill strNew '新文件存在则先删除
@@ -546,7 +1194,7 @@ Public Function gfFileReNameEx(ByVal strOld As String, ByVal strNew As String) A
     gfFileReNameEx = True
     
     Exit Function
-LineERR:
+LineErr:
     Call gsAlarmAndLog("文件/文件夹重命名异常", False)
 End Function
 
@@ -566,7 +1214,7 @@ Public Function gfFileRepair(ByVal strFile As String, Optional ByVal blnFolder A
     strTemp = strFile
     If Len(strTemp) = 0 Then Exit Function          '防止传入空字符串
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
 
     typBack = gfFileExistEx(strTemp)    '判断是否存在
     If Not typBack.Result Then          '文件不存在
@@ -594,7 +1242,7 @@ Public Function gfFileRepair(ByVal strFile As String, Optional ByVal blnFolder A
         gfFileRepair = True '路径完整直接返回True
     End If
 
-LineERR:
+LineErr:
     Close
 End Function
 
@@ -606,10 +1254,10 @@ Public Function gfFolderRepair(ByVal strFile As String) As Boolean
     Dim fsObject As Scripting.FileSystemObject
     Dim lngLoc As Long
     
-    On Error GoTo LineERR
+    On Error GoTo LineErr
     
     strTemp = Trim(strFile)
-    If Len(strTemp) = 0 Then GoTo LineERR   '防止传入空字符串
+    If Len(strTemp) = 0 Then GoTo LineErr   '防止传入空字符串
     
     Set fsObject = New Scripting.FileSystemObject   '实例化文件对象
     If fsObject.FolderExists(strTemp) Then    '判断文件夹是否存在
@@ -623,7 +1271,7 @@ Public Function gfFolderRepair(ByVal strFile As String) As Boolean
         fsObject.CreateFolder (strTemp) '上层目录确保存在后则创建该文件夹
         gfFolderRepair = True           '创建成功同时返回True
     End If
-LineERR:
+LineErr:
     Set fsObject = Nothing
     If Err.Number > 0 Then
         Call gsAlarmAndLog("文件夹路径[" & strTemp & "]异常！", False)
@@ -766,6 +1414,121 @@ Public Function gfStringCheck(ByVal strIn As String) As String
 
 End Function
 
+'--------------------------------------------------------------------------
+
+'枚举所有顶级窗口
+Private Function EnumWindowsProc(ByVal hwnd As Long, ByVal lParam As Long) As Long
+    Dim WindowCaption As String, CaptionLength As Long, WindowClassName As String * 256
+    
+    CaptionLength = GetWindowTextLength(hwnd)
+    WindowCaption = Space(CaptionLength)
+    Call GetWindowText(hwnd, WindowCaption, CaptionLength + 1)
+    If InStr(1, WindowCaption, MsgBoxTitleText) > 0 Then
+        Dlghwnd = hwnd
+    End If
+    EnumWindowsProc = 1
+End Function
+
+'枚举所有子窗口
+Private Function EnumChildWindowsProc(ByVal hwnd As Long, ByVal lParam As Long) As Long
+    Dim WindowCaption As String, CaptionLength As Long, WindowClassName As String * 256
+    
+    CaptionLength = GetWindowTextLength(hwnd)
+    WindowCaption = Space(CaptionLength)
+    Call GetWindowText(hwnd, WindowCaption, CaptionLength + 1)
+    Call GetClassName(hwnd, WindowClassName, 256)
+    If InStr(1, WindowClassName, "Static") > 0 Then
+        Dlgtexthwnd = hwnd
+    End If
+    EnumChildWindowsProc = 1
+End Function
+
+Private Function TimeOutString(ByVal strTimeOut As String) As String
+    '返回倒计时字串
+    strTimeOut = CStr(Val(strTimeOut))
+    TimeOutString = "(窗口将在" & strTimeOut & "秒后关闭)"
+End Function
+
+'API函数timeSetEvent使用的回调函数
+Private Function TimeSetProc(ByVal uID As Long, ByVal uMsg As Long, ByVal dwUser As Long, ByVal dw1 As Long, ByVal dw2 As Long) As Long
+    Dim cText As String, nowTime As Long
+    
+    MediaCount = MediaCount + DelayTime / 1000
+    If Dlgtexthwnd > 0 Then
+        nowTime = MsgBoxCloseTime - Fix(MediaCount)
+        If nowTime <= 0 Then
+            Call SendMessage(Dlghwnd, WM_CLOSE, 0, 0) '时间到，关闭对话框
+            Call timeKillEvent(TimeID)  '删除多媒体计时器标识
+        End If
+        cText = MsgBoxPromptText & vbCrLf & TimeOutString(nowTime)
+        Call SendMessage(Dlgtexthwnd, WM_SETTEXT, Len(cText), ByVal cText)
+    Else
+        Call EnumWindows(AddressOf EnumWindowsProc, 0)
+        If Dlghwnd > 0 Then
+            Call EnumChildWindows(Dlghwnd, AddressOf EnumChildWindowsProc, 0)
+        End If
+    End If
+    TimeSetProc = 1
+End Function
+
+'定时关闭对话框：SecondsToClose参数设置对话框关闭时间；MsgPrompt参数设置对话框提示文本；vbButtons参数是设置对话框按钮及图标。
+Public Function MsgBoxAutoClose(Optional ByVal MsgPrompt As String = "提示信息", _
+        Optional ByVal vbButtons As VbMsgBoxStyle = vbOKOnly + vbInformation, _
+        Optional ByVal MsgTitle As String = "对话框", _
+        Optional ByVal SecondsToClose As Long = 10) As VBA.VbMsgBoxResult
+    Dim RetButton As Long '参数值含vbAbortRetryIgnore或vbYesNo时无法自动关闭对话框
+    
+    Dlghwnd = 0
+    Dlgtexthwnd = 0
+    MsgBoxCloseTime = SecondsToClose
+    MsgBoxPromptText = MsgPrompt
+    MsgBoxTitleText = MsgTitle
+    TimeID = timeSetEvent(DelayTime, 0, AddressOf TimeSetProc, 1, TIME_PERIODIC)  '时间间隔为500毫秒
+    RetButton = MsgBox(MsgBoxPromptText & vbCrLf & TimeOutString(MsgBoxCloseTime), vbButtons, MsgBoxTitleText)      '定义msgbox对话框
+    Call timeKillEvent(TimeID)  '删除多媒体计时器标识
+    MediaCount = 0  '清空累计时间
+    MsgBoxAutoClose = RetButton  '返回按键值
+End Function
+'--------------------------------------------------------------------------
+
+Public Function ShellWait(ByVal strShellCommand As String) As Boolean
+    '等待Shell命令执行完成后再执行后面的代码，间接阻止Shell的异步执行.
+    Dim osInfo As OSVERSIONINFO
+    Dim Ret As Long, nSysVer As Long, pidNotePad As Long, hProcess As Long, lExitCode As Long
+    Dim strSave As String, Path As String, sCommPath As String, sExecString As String
+    
+    On Error Resume Next
+    
+    osInfo.dwOSVersionInfoSize = Len(osInfo) 'Set the structure size
+    Ret& = GetVersionEx(osInfo) 'Get the Windows version
+    If Ret& = 0 Then MsgBox "Error Getting Version Information" 'Chack for errors
+    nSysVer = osInfo.dwPlatformId
+
+    strSave = String(200, Chr$(0)) 'Create a buffer string
+    Path = Left$(strSave, GetWindowsDirectory(strSave, Len(strSave))) 'Get the windows directory
+    If Mid(Path, Len(Path), 1) <> "\" Then Path = Path & "\"
+    sCommPath = Path
+    If nSysVer = 1 Then 'windows98
+        sExecString = sCommPath + "command.com  /c " + strShellCommand
+    Else
+        sExecString = strShellCommand
+    End If
+    
+    pidNotePad = Shell(sExecString, vbHide) '返回执行程序的任务ID，不成功返回0
+    hProcess = OpenProcess(Process_query_infomation, True, pidNotePad)  '打开进程
+    Do
+        GetExitCodeProcess hProcess, lExitCode  '获取进程中断退出代码
+        DoEvents
+    Loop While lExitCode = Still_Active
+    CloseHandle (pidNotePad)    '关闭进程
+    
+    If Err.Number Then
+        Call gsAlarmAndLog(Err.Number & "--" & Err.Description, False)
+    Else
+        ShellWait = True
+    End If
+End Function
+
 Public Function ShowBackupTimeInfo(ByVal BKInterval As Long, ByVal BKDate As Date) As String
     '转化备份频率与备份时间
     Dim strShow As String, strNext As String, strTime As String
@@ -793,11 +1556,11 @@ End Function
 Public Function ShowBackupNextTime(ByVal BKInterval As Long, ByVal BKDate As Date) As String
     '转化备份频率与备份时间
     Dim strShow As String
-    Dim NowTime As Date, BackTime As Date, NextDay As Date, ThisYear As Date
+    Dim nowTime As Date, BackTime As Date, NextDay As Date, ThisYear As Date
     Dim NowWeek As Long, BKWeek As Long, modDay As Long
     Dim NowDay As Long, BKDay As Long, NowMonth As Long, BKMonth As Long
     
-    NowTime = Time
+    nowTime = Time
     BackTime = Format(BKDate, "HH:mm:ss")
     NowWeek = Weekday(Date)
     BKWeek = Weekday(BKDate)
@@ -811,25 +1574,25 @@ Public Function ShowBackupNextTime(ByVal BKInterval As Long, ByVal BKDate As Dat
         Case 1 To 5
             Select Case BKInterval
                 Case 1  '每天
-                    If NowTime <= BackTime Then
+                    If nowTime <= BackTime Then
                         NextDay = Date
                     Else
                         NextDay = Date + 1
                     End If
                 Case 2  '每周
-                    If (NowWeek < BKWeek) Or (NowWeek = BKWeek And NowTime <= BackTime) Then
+                    If (NowWeek < BKWeek) Or (NowWeek = BKWeek And nowTime <= BackTime) Then
                         NextDay = Date + (BKWeek - NowWeek)
                     Else
                         NextDay = Date + (7 - NowWeek + BKWeek)
                     End If
                 Case 3  '每月
-                    If (NowDay < BKDay) Or (NowDay = BKDay And NowTime <= BackTime) Then
+                    If (NowDay < BKDay) Or (NowDay = BKDay And nowTime <= BackTime) Then
                         NextDay = Date + (BKDay - NowDay)
                     Else
                         NextDay = DateAdd("m", DateDiff("m", BKDate, DateAdd("m", 1, Date)), BKDate)
                     End If
                 Case 4  '每年
-                    If (Date < ThisYear) Or (Date = ThisYear And NowTime <= BackTime) Then
+                    If (Date < ThisYear) Or (Date = ThisYear And nowTime <= BackTime) Then
                         NextDay = ThisYear
                     Else
                         NextDay = DateAdd("yyyy", 1, ThisYear)
@@ -839,7 +1602,7 @@ Public Function ShowBackupNextTime(ByVal BKInterval As Long, ByVal BKDate As Dat
                         NextDay = BKDate
                     Else
                         modDay = (Now - BKDate) Mod gVar.ParaBackupIntervalDays
-                        If modDay = 0 And NowTime > BackTime Then
+                        If modDay = 0 And nowTime > BackTime Then
                             modDay = modDay + gVar.ParaBackupIntervalDays
                         End If
                         NextDay = Date + modDay

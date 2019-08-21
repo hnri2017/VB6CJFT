@@ -1492,6 +1492,7 @@ Private Sub Timer2_Timer()
         If Format(nowTime, "yyyy-MM-dd HH:mm") = Format(BackupTime, "yyyy-MM-dd HH:mm") Then '时间上除了秒数都相同
             If Abs(Val(Format(BackupTime - nowTime, "s"))) < 2 Then   '取得两个时间相减后的秒数。原理上BackTime 总是大于 nowTime
                 Me.Timer2.Enabled = False
+                Call FileBackupCP(gVar.FolderNameStore, gVar.ParaBackupPath)
                 Debug.Print "备份一次：" & BackupTime
                 Me.Timer2.Enabled = True
             End If

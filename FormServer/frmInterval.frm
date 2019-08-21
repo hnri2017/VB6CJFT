@@ -94,7 +94,7 @@ Begin VB.Form frmInterval
          _ExtentY        =   714
          _Version        =   393216
          CustomFormat    =   "HH:mm:ss"
-         Format          =   101777410
+         Format          =   102236162
          CurrentDate     =   43680.8125
       End
    End
@@ -108,9 +108,16 @@ Option Explicit
 
 Private Sub Command1_Click()
     '确定
-    Dim K As Long
+    Dim K As Long, strPromp As String
     
-    If MsgBox("确定保存当前设置吗？", vbQuestion + vbOKCancel, "提醒") = vbCancel Then Exit Sub
+    strPromp = "确定保存当前设置吗？"
+    If Not Me.Option1.Item(0).Value Then
+        If Me.DTPicker1.Hour > 7 And Me.DTPicker1.Hour < 18 Then
+            strPromp = "上午8点至下午18点前是用户使用高峰期，因备份时会占用服务器很多资源，所以备份时间建议设置在此时间段外，以免影响用户使用。"
+        End If
+    End If
+    
+    If MsgBox(strPromp, vbQuestion + vbOKCancel, "提醒") = vbCancel Then Exit Sub
     
     For K = Me.Option1.LBound To Me.Option1.UBound
         If Me.Option1.Item(K).Value Then
@@ -138,6 +145,12 @@ Private Sub Command1_Click()
             Exit For
         End If
     Next
+End Sub
+
+
+Private Sub Form_DblClick()
+'    MsgBox FileBackupCP(gVar.FolderNameStore, gVar.ParaBackupPath)
+'    MsgBox FileRestoreCP(gVar.ParaBackupPath & "fbk2019-08-21-16-03-33.bak", "D:\ABC\DEF")
 End Sub
 
 Private Sub Form_Load()
