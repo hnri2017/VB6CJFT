@@ -2,6 +2,34 @@ Attribute VB_Name = "basFileTransmit"
 Option Explicit
 
 
+'''网上抄的刷新任务栏托盘图标清除无用图标
+Private Declare Function RedrawWindow Lib "user32" (ByVal hwnd As Long, lprcUpdate As Long, ByVal hrgnUpdate As Long, ByVal fuRedraw As Long) As Long
+Private Declare Function FindWindowEx Lib "user32" Alias "FindWindowExA" (ByVal hWnd1 As Long, ByVal hWnd2 As Long, ByVal lpsz1 As String, ByVal lpsz2 As String) As Long
+Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
+Private Declare Function GetWindowRect Lib "user32" (ByVal hwnd As Long, lpRect As RECT) As Long
+ 
+Private Declare Function GetSystemMetrics Lib "user32" (ByVal nIndex As Long) As Long
+Private Declare Function GetCursorPos Lib "user32" (lpPoint As POINTAPI) As Long
+Private Declare Function SetCursorPos Lib "user32" (ByVal X As Long, ByVal Y As Long) As Long
+Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+Private Type RECT
+        Left As Long
+        Top As Long
+        Right As Long
+        Bottom As Long
+End Type
+Private Type POINTAPI
+        X As Long
+        Y As Long
+End Type
+Private Const RDW_INVALIDATE = &H1
+Private Const RDW_ERASE = &H4
+Private Const RDW_UPDATENOW = &H100
+Private Const SM_CXSMICON = 49
+Private Const SM_CYSMICON = 50
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
 '''网上抄的MD5加密解密
 '''链接地址：https://www.cnblogs.com/youyouran/p/5381050.html
 
@@ -921,3 +949,31 @@ Public Sub gsLoadFileInfo(Optional ByVal arrIndex As Long = 1, Optional ByVal bl
     End With
 End Sub
 
+Public Sub RemoveDeadIconFromSysTray()
+    Dim TrayWindow As Long
+    Dim WindowRect As RECT
+    Dim SmallIconWidth As Long
+    Dim SmallIconHeight As Long
+    Dim CursorPos As POINTAPI
+    Dim Row As Long
+    Dim Col As Long
+    '获得任务栏句柄和边框
+    TrayWindow = FindWindowEx(FindWindow("Shell_TrayWnd", vbNullString), 0, "TrayNotifyWnd", vbNullString)
+    If GetWindowRect(TrayWindow, WindowRect) = 0 Then Exit Sub
+    '获得小图标大小
+    SmallIconWidth = GetSystemMetrics(SM_CXSMICON)
+    SmallIconHeight = GetSystemMetrics(SM_CYSMICON)
+    '保存当前鼠标位置
+    Call GetCursorPos(CursorPos)
+    '使鼠标快速划过每个图标
+    For Row = 0 To (WindowRect.Bottom - WindowRect.Top) / SmallIconHeight
+        For Col = 0 To (WindowRect.Right - WindowRect.Left) / SmallIconWidth
+            Call SetCursorPos(WindowRect.Left + Col * SmallIconWidth, WindowRect.Top + Row * SmallIconHeight)
+            Call Sleep(10)  '发现这个地方参数为 0 的时候，有时候是不够的
+        Next
+    Next
+    '恢复鼠标位置
+    Call SetCursorPos(CursorPos.X, CursorPos.Y)
+    '重画任务栏
+    Call RedrawWindow(TrayWindow, 0, 0, RDW_INVALIDATE Or RDW_ERASE Or RDW_UPDATENOW)
+End Sub

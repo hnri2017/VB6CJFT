@@ -152,6 +152,7 @@ Private Function mfShellSetup(ByVal strFile As String) As Boolean
     
     If MsgBox("是否立即执行更新程序？", vbQuestion + vbYesNo, "安装询问") = vbYes Then
         If gfCloseApp(gVar.EXENameOfClient) Then   '关闭客户端exe
+            Call RemoveDeadIconFromSysTray  '刷新什么样图标,终止客户端进程时其图标没有删除掉
             If gfShellExecute(strFile) Then     '运行安装包
                 Unload Me
                 Exit Function
@@ -427,7 +428,7 @@ Private Sub Winsock1_DataArrival(Index As Integer, ByVal bytesTotal As Long)
     End With
     
     Exit Sub
-LineERR:
+LineErr:
     mblnFTErr = True
     mblnUnload = True
 End Sub
