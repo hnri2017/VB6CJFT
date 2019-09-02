@@ -604,6 +604,7 @@ Public Type gtypeCommandBarID
     
     toolErrorLog As Long  '错误日志查看
     toolLoginLog As Long '登陆日志查看
+    toolFileRestore As Long '文件还原
     toolOptions As Long  '选项
     
     

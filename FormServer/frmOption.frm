@@ -289,6 +289,7 @@ Private Sub Grid1_ButtonClick(ByVal Row As Long, ByVal Col As Long)
         
     ElseIf Row = 20 And Col = 3 Then    '备份频率设置
         Call gsOpenTheWindow("frmInterval", vbModal, vbNormal)
+    
     End If
 End Sub
 
@@ -308,16 +309,21 @@ Private Sub Grid1_Click()
 End Sub
 
 Private Sub Grid1_HyperLinkClick(ByVal Row As Long, ByVal Col As Long, URL As String, Changed As Boolean)
-    '保存设置值
+    '超链接响应
     
     URL = ""
     Changed = True
-    If Row <> (Grid1.Rows - 1) Then Exit Sub
-    
-    If Col = 3 Then '保存
-        If MsgBox("确定保存所有参数值吗？", vbQuestion + vbOKCancel, "保存询问") = vbOK Then Call msSaveParameter(True)
-    ElseIf Col = 7 Then '退出
-        Unload Me
+    If Row = (Grid1.Rows - 1) Then
+        If Col = 3 Then '保存
+            If MsgBox("确定保存所有参数值吗？", vbQuestion + vbOKCancel, "保存询问") = vbOK Then Call msSaveParameter(True)
+        ElseIf Col = 7 Then '退出
+            Unload Me
+        End If
+    ElseIf Row = 20 And Col = 8 Then    '立即备份
+        If MsgBox("是否现在进行文件备份？", vbQuestion + vbYesNo, "备份提示") = vbYes Then
+            Call FileBackupCP(gVar.FolderNameStore, gVar.ParaBackupPath)
+            Debug.Print "手动备份一次：" & Now
+        End If
     End If
 End Sub
 

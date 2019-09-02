@@ -485,6 +485,7 @@ Private Sub msAddAction(ByRef cbsBars As XtremeCommandBars.CommandBars)
         .Add gID.Tool, "工具", "", "", "工具"
         .Add gID.toolErrorLog, "系统异常日志", "", "", "frmErrorLog"
         .Add gID.toolLoginLog, "用户登陆日志", "", "", "frmLoginLog"
+        .Add gID.toolFileRestore, "服务端文件还原", "", "", "frmFileRestore"
         .Add gID.toolOptions, "选项", "", "", "frmOption"
         
         
@@ -635,6 +636,8 @@ Private Sub msAddMenu(ByRef cbsBars As XtremeCommandBars.CommandBars)
     Set cbsMenuCtrl = cbsMenuMain.CommandBar.Controls.Add(xtpControlButton, gID.toolErrorLog, "")
     cbsMenuCtrl.BeginGroup = True
     Set cbsMenuCtrl = cbsMenuMain.CommandBar.Controls.Add(xtpControlButton, gID.toolLoginLog, "")
+    cbsMenuCtrl.BeginGroup = True
+    Set cbsMenuCtrl = cbsMenuMain.CommandBar.Controls.Add(xtpControlButton, gID.toolFileRestore, "")
     cbsMenuCtrl.BeginGroup = True
     Set cbsMenuCtrl = cbsMenuMain.CommandBar.Controls.Add(xtpControlButton, gID.toolOptions, "")
     cbsMenuCtrl.BeginGroup = True
@@ -955,7 +958,7 @@ Private Sub msLeftClick(ByVal CID As Long, ByRef cbsBars As XtremeCommandBars.Co
 '''                                Call gsOpenTheWindow(strKey)
 '''                        End Select
                         Select Case CID
-                            Case .toolOptions, .WndThemeSkinSet
+                            Case .toolOptions, .WndThemeSkinSet, .toolFileRestore
                                 Call gsOpenTheWindow(strKey, vbModal, vbNormal)
                             Case Else
                                 Call gsOpenTheWindow(strKey)
